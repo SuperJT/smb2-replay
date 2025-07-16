@@ -302,7 +302,14 @@ class SessionManager:
                 'Status': status_display,
                 'StatusDesc': status_desc,
                 'Tree': tree_name,
-                'orig_idx': idx
+                'orig_idx': idx,
+                # Add fields required for replay validation
+                'smb2.cmd': cmd,
+                'smb2.filename': filename,
+                'smb2.tid': tid,
+                'smb2.nt_status': row.get('smb2.nt_status', 'N/A'),
+                'smb2.flags.response': row.get('smb2.flags.response', 'False'),
+                'smb2.fid': row.get('smb2.fid', 'N/A')
             }
             
             # Add selected fields

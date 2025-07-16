@@ -225,6 +225,67 @@ class ConfigManager:
         """Get the current trace name."""
         return self.current_trace_name
 
+    # Replay configuration methods
+    def get_server_ip(self) -> str:
+        """Get the replay server IP address."""
+        return self.replay_config.get("server_ip", "10.216.29.241")
+
+    def set_server_ip(self, server_ip: str) -> None:
+        """Set the replay server IP address."""
+        self.replay_config["server_ip"] = server_ip
+        self.save_config()
+        self.logger.info(f"Set server IP to {server_ip}")
+
+    def get_domain(self) -> str:
+        """Get the replay server domain."""
+        return self.replay_config.get("domain", "nas-deep.local")
+
+    def set_domain(self, domain: str) -> None:
+        """Set the replay server domain."""
+        self.replay_config["domain"] = domain
+        self.save_config()
+        self.logger.info(f"Set domain to {domain}")
+
+    def get_username(self) -> str:
+        """Get the replay server username."""
+        return self.replay_config.get("username", "jtownsen")
+
+    def set_username(self, username: str) -> None:
+        """Set the replay server username."""
+        self.replay_config["username"] = username
+        self.save_config()
+        self.logger.info(f"Set username to {username}")
+
+    def get_password(self) -> str:
+        """Get the replay server password."""
+        return self.replay_config.get("password", "PASSWORD")
+
+    def set_password(self, password: str) -> None:
+        """Set the replay server password."""
+        self.replay_config["password"] = password
+        self.save_config()
+        self.logger.info(f"Set password to {password}")
+
+    def get_tree_name(self) -> str:
+        """Get the replay server tree/share name."""
+        return self.replay_config.get("tree_name", "2pm")
+
+    def set_tree_name(self, tree_name: str) -> None:
+        """Set the replay server tree/share name."""
+        self.replay_config["tree_name"] = tree_name
+        self.save_config()
+        self.logger.info(f"Set tree name to {tree_name}")
+
+    def get_max_wait(self) -> float:
+        """Get the replay server maximum wait time."""
+        return self.replay_config.get("max_wait", 5.0)
+
+    def set_max_wait(self, max_wait: float) -> None:
+        """Set the replay server maximum wait time."""
+        self.replay_config["max_wait"] = max_wait
+        self.save_config()
+        self.logger.info(f"Set max wait to {max_wait}")
+
     def resolve_session_file(self, session_id: str) -> Optional[str]:
         """Resolve a session ID to a session file path.
         
@@ -288,4 +349,4 @@ def get_traces_folder() -> str:
 
 def set_verbosity(level: int):
     """Set global verbosity level."""
-    get_config().set_verbosity(level) 
+    get_config().set_verbosity(level)
