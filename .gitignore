@@ -5,6 +5,12 @@ __pycache__/
 *.pyo
 *.pyd
 
+# Python package build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+
 # Jupyter Notebook
 .ipynb_checkpoints/
 *.ipynb_checkpoints
@@ -43,12 +49,6 @@ evidence/
 *.trc
 *.trc0
 *.parquet
-
-# Python build artifacts
-build/
-dist/
-*.egg-info/
-*.so
 
 # Environment variables
 .env
