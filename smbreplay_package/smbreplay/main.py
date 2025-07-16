@@ -372,7 +372,8 @@ Note: The --trace option is used to specify the packet trace file (.pcap, .pcapn
     
     # Replay command
     replay_parser = subparsers.add_parser("replay", help="Replay operations")
-    replay_parser.add_argument("session_file", help="Session file name")
+    replay_parser.add_argument("session_file", nargs="?", help="Session file name or session ID")
+    replay_parser.add_argument("--session-id", help="Session ID to replay")
     replay_parser.add_argument("--pcap", help="Path to PCAP file")
     replay_parser.add_argument("--file-filter", help="Filter by specific file")
     replay_parser.add_argument("--server-ip", help="SMB server IP")
@@ -496,7 +497,13 @@ def handle_config_command(args, config):
             "case_id": config.get_case_id(),
             "trace_name": trace_name,
             "tshark_available": check_tshark_availability(),
-            "supported_commands": get_supported_commands()
+            "supported_commands": get_supported_commands(),
+            "server_ip": config.get_server_ip(),
+            "domain": config.get_domain(),
+            "username": config.get_username(),
+            "password": "***" if config.get_password() != "PASSWORD" else config.get_password(),
+            "tree_name": config.get_tree_name(),
+            "max_wait": config.get_max_wait()
         }
         
         # Handle format attribute - it might not exist if we defaulted to show
@@ -515,6 +522,12 @@ def handle_config_command(args, config):
             print(f"  Trace name: {info['trace_name'] or 'Not configured'}")
             print(f"  TShark available: {info['tshark_available']}")
             print(f"  Supported commands: {', '.join(info['supported_commands'].values())}")
+            print(f"  Server IP: {info['server_ip']}")
+            print(f"  Domain: {info['domain']}")
+            print(f"  Username: {info['username']}")
+            print(f"  Password: {info['password']}")
+            print(f"  Tree name: {info['tree_name']}")
+            print(f"  Max wait: {info['max_wait']}")
     
     elif args.config_action == "set":
         if args.key == "traces_folder":
@@ -539,9 +552,31 @@ def handle_config_command(args, config):
         elif args.key == "trace_name":
             config.set_trace_name(args.value)
             print(f"Set trace_name to: {args.value}")
+        elif args.key == "server_ip":
+            config.set_server_ip(args.value)
+            print(f"Set server_ip to: {args.value}")
+        elif args.key == "domain":
+            config.set_domain(args.value)
+            print(f"Set domain to: {args.value}")
+        elif args.key == "username":
+            config.set_username(args.value)
+            print(f"Set username to: {args.value}")
+        elif args.key == "password":
+            config.set_password(args.value)
+            print(f"Set password to: {args.value}")
+        elif args.key == "tree_name":
+            config.set_tree_name(args.value)
+            print(f"Set tree_name to: {args.value}")
+        elif args.key == "max_wait":
+            try:
+                max_wait = float(args.value)
+                config.set_max_wait(max_wait)
+                print(f"Set max_wait to: {max_wait}")
+            except ValueError:
+                print(f"Error: max_wait must be a number")
         else:
             print(f"Error: Unknown configuration key: {args.key}")
-            print("Available keys: traces_folder, capture_path, verbosity_level, session_id, case_id, trace_name")
+            print("Available keys: traces_folder, capture_path, verbosity_level, session_id, case_id, trace_name, server_ip, domain, username, password, tree_name, max_wait")
     
     elif args.config_action == "get":
         if args.key == "traces_folder":
@@ -556,9 +591,21 @@ def handle_config_command(args, config):
             print(config.get_case_id() or "")
         elif args.key == "trace_name":
             print(config.get_trace_name() or "")
+        elif args.key == "server_ip":
+            print(config.get_server_ip())
+        elif args.key == "domain":
+            print(config.get_domain())
+        elif args.key == "username":
+            print(config.get_username())
+        elif args.key == "password":
+            print(config.get_password())
+        elif args.key == "tree_name":
+            print(config.get_tree_name())
+        elif args.key == "max_wait":
+            print(config.get_max_wait())
         else:
             print(f"Error: Unknown configuration key: {args.key}")
-            print("Available keys: traces_folder, capture_path, verbosity_level, session_id, case_id, trace_name")
+            print("Available keys: traces_folder, capture_path, verbosity_level, session_id, case_id, trace_name, server_ip, domain, username, password, tree_name, max_wait")
 
 
 def main():
@@ -645,20 +692,28 @@ def main():
 
         # If session_file is provided and does not end with .parquet, treat as session ID and construct proper filename
         if session_file and not session_file.endswith('.parquet'):
+            session_id = session_file  # Store the original session ID
             session_file = f"smb2_session_{session_file}.parquet"
 
         # If --session-id is provided, override session_file
-        if session_id:
+        if session_id and session_id != session_file:
             session_file = f"smb2_session_{session_id}.parquet"
-            resolved_path = system.config.resolve_session_file(session_id)
-            if not resolved_path:
-                print(f"Error: Could not resolve session ID '{session_id}' to a session file")
-                sys.exit(1)
-            print(f"Resolved session ID '{session_id}' to: {os.path.basename(resolved_path)}")
 
         if not session_file:
             print("Error: No session file or session ID provided")
             sys.exit(1)
+
+        # Update configuration with session information
+        if session_id:
+            system.config.set_session_id(session_id)
+        
+        # Update case ID if provided
+        if hasattr(args, 'case') and args.case:
+            system.config.set_case_id(args.case)
+        
+        # Update trace name if provided
+        if hasattr(args, 'trace') and args.trace:
+            system.config.set_trace_name(args.trace)
 
         pcap_path = resolve_pcap_path(args, system.config)
         print(f"Loading session: {session_file}")
@@ -738,6 +793,42 @@ def main():
             sys.exit(1)
     
     elif args.command == "replay":
+        # Handle session ID resolution (same logic as session command)
+        session_file = args.session_file
+        session_id = args.session_id
+
+        # If session_file is provided and does not end with .parquet, treat as session ID and construct proper filename
+        if session_file and not session_file.endswith('.parquet'):
+            session_id = session_file  # Store the original session ID
+            session_file = f"smb2_session_{session_file}.parquet"
+
+        # If --session-id is provided, override session_file
+        if session_id and session_id != session_file:
+            session_file = f"smb2_session_{session_id}.parquet"
+
+        # If no session specified, try to use configured session
+        if not session_file and not session_id:
+            session_id = system.config.get_session_id()
+            if session_id:
+                session_file = f"smb2_session_{session_id}.parquet"
+                print(f"Using configured session: {session_id}")
+            else:
+                print("Error: No session specified and no session configured")
+                print("Use: smbreplay replay <session_id> or configure a session with 'smbreplay config set session_id <session_id>'")
+                sys.exit(1)
+
+        # Update configuration with session information
+        if session_id:
+            system.config.set_session_id(session_id)
+        
+        # Update case ID if provided
+        if hasattr(args, 'case') and args.case:
+            system.config.set_case_id(args.case)
+        
+        # Update trace name if provided
+        if hasattr(args, 'trace') and args.trace:
+            system.config.set_trace_name(args.trace)
+
         # Configure replay if provided
         system.configure_replay(
             server_ip=args.server_ip,
@@ -749,8 +840,10 @@ def main():
         
         # Get session info first
         pcap_path = resolve_pcap_path(args, system.config)
+        print(f"Loading session for replay: {session_file}")
+        
         operations = system.get_session_info(
-            args.session_file,
+            session_file,
             capture_path=pcap_path,
             file_filter=args.file_filter
         )
@@ -758,6 +851,8 @@ def main():
         if not operations:
             print("Failed to get session info for replay")
             sys.exit(1)
+        
+        print(f"Loaded {len(operations)} operations for replay")
         
         # Replay operations
         result = system.replay_operations(operations)

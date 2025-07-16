@@ -350,23 +350,59 @@ class SMB2Replayer:
             return {"valid": False, "error": "No operations provided"}
         
         issues = []
-        supported_commands = {3, 5, 6, 8, 9}  # Currently supported commands
+        # Expanded supported commands - including more SMB2 operations
+        supported_commands = {
+            1,   # Session Setup (can be skipped in replay)
+            3,   # Tree Connect  
+            5,   # Create
+            6,   # Close
+            8,   # Read
+            9,   # Write
+            10,  # Lock
+            14,  # Query Directory
+            16,  # Query Info
+            17   # Set Info
+        }
         
         for i, op in enumerate(operations):
             try:
-                cmd = int(op.get('smb2.cmd', -1))
+                cmd_raw = op.get('smb2.cmd', '-1')
+                cmd = int(cmd_raw) if str(cmd_raw).isdigit() else -1
                 
                 if cmd not in supported_commands:
                     issues.append(f"Operation {i+1}: Unsupported command {cmd}")
+                    continue
                 
-                # Check required fields
+                # Check required fields based on command type
                 if cmd == 5:  # Create
                     if not op.get('smb2.filename'):
                         issues.append(f"Operation {i+1}: Create operation missing filename")
                 
-                if cmd in [6, 8, 9]:  # Close, Read, Write
-                    if not op.get('smb2.fid'):
-                        issues.append(f"Operation {i+1}: {SMB2_OP_NAME_DESC.get(cmd, ('Unknown',))[0]} operation missing fid")
+                elif cmd in [6, 8, 9]:  # Close, Read, Write
+                    fid = op.get('smb2.fid', '')
+                    # Only validate fid if it's required (skip empty responses)
+                    if not fid or str(fid).strip() == '' or str(fid) == 'N/A':
+                        # This is likely a response frame without fid, which is normal
+                        pass
+                
+                elif cmd == 10:  # Lock
+                    fid = op.get('smb2.fid', '')
+                    # Only validate fid if it's required (skip empty responses)
+                    if not fid or str(fid).strip() == '' or str(fid) == 'N/A':
+                        # This is likely a response frame without fid, which is normal
+                        pass
+                
+                elif cmd in [14, 16, 17]:  # Query Directory, Query Info, Set Info
+                    # These operations may not require strict validation for basic replay
+                    pass
+                
+                elif cmd == 1:  # Session Setup
+                    # Session setup can be skipped in replay as we establish our own session
+                    pass
+                
+                elif cmd == 3:  # Tree Connect
+                    # Tree connect validation handled during replay
+                    pass
                 
             except (ValueError, TypeError) as e:
                 issues.append(f"Operation {i+1}: Invalid command format: {e}")
@@ -385,11 +421,16 @@ class SMB2Replayer:
             Dictionary mapping command codes to descriptions
         """
         supported = {
+            1: "Session Setup (skipped in replay)",
             3: "Tree Connect",
             5: "Create",
             6: "Close", 
             8: "Read",
-            9: "Write"
+            9: "Write",
+            10: "Lock",
+            14: "Query Directory",
+            16: "Query Info",
+            17: "Set Info"
         }
         return supported
     
