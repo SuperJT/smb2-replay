@@ -33,5 +33,28 @@ smbreplay.log
 
 # Trace data
 cases/
+traces/
+evidence/
 *.pcap
-*.parquet 
+*.pcapng
+*.trc
+*.trc0
+*.parquet
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+*.so
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.staging
+
+# Additional temporary files
+*.tmp
+*.temp
+.cache/
+.pytest_cache/ 
