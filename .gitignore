@@ -19,6 +19,9 @@ config.pkl
 .vscode/
 .idea/
 
+# Wireshark-generated files (version specific)
+smb2_fields.txt
+
 # OS generated files
 .DS_Store
 .DS_Store?
@@ -57,4 +60,4 @@ dist/
 *.tmp
 *.temp
 .cache/
-.pytest_cache/ 
+.pytest_cache/
