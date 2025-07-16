@@ -2,6 +2,8 @@
 
 This project provides a system to capture, store, and replay SMB2 (Server Message Block version 2) network traffic for diagnostic, testing, and protocol analysis purposes in a controlled lab environment.
 
+**Repository**: https://github.com/SuperJT/smb2-replay
+
 ## Project Overview
 
 ### Objective
@@ -45,9 +47,10 @@ Configuration is managed through the Python package's user-specific configuratio
    pcapfix --help
    ```
 
-2. **Clone/Navigate to the project directory**:
+2. **Clone the repository**:
    ```bash
-   cd /path/to/smbreplay
+   git clone https://github.com/SuperJT/smb2-replay.git
+   cd smb2-replay
    ```
 
 3. **Create and activate the virtual environment**:
