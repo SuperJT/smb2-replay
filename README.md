@@ -72,7 +72,8 @@ Configuration is managed through the Python package's user-specific configuratio
 ### Quick Start
 
 1. **Set up trace directory** (optional):
-   ```bash
+   ```bash 
+
    export TRACES_FOLDER="~/cases"  # Default location
    mkdir -p "$TRACES_FOLDER"
    ```
@@ -421,7 +422,11 @@ If the Python package fails to import:
 ├── utils/                              # Development/debug utilities
 │   ├── check_tree_connect_frames.py   # Debug script for tree connects
 │   ├── compare_pcap_parquet.py         # PCAP to parquet comparison tool
-│   └── debug_tree_connects.py          # Tree connect debugging script
+│   ├── debug_tree_connects.py          # Tree connect debugging script
+│   ├── system_status.py                # System status reporting
+│   ├── test_mock_connectivity.py       # Mock connectivity testing
+│   ├── test_simple_connectivity.py     # Simple connectivity testing
+│   └── test_smb_connectivity.py        # Full SMB connectivity testing
 ├── requirements.txt                    # Python dependencies
 ├── activate_env.sh                     # Environment activation script
 ├── test_environment.py                 # Environment verification script

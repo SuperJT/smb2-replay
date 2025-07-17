@@ -74,7 +74,7 @@ def test_directory_listing(conn: SMBConnection, tree_name: str, tid: int, path: 
         return False
 
 
-def test_file_operations(conn: SMBConnection, tid: int, test_filename: str = 'smb2_replay_test.txt') -> bool:
+def test_file_operations(conn: SMBConnection, tid: int, tree_name: str, test_filename: str = 'smb2_replay_test.txt') -> bool:
     """Test basic file operations."""
     print(f"Testing file operations with '{test_filename}'...")
     
@@ -89,15 +89,20 @@ def test_file_operations(conn: SMBConnection, tid: int, test_filename: str = 'sm
         conn.closeFile(tid, fid)
         print("  ✓ File close successful")
         
-        # Try to delete the test file
+        # Try to delete the test file (uses tree_name, not tid!)
+        delete_success = True
         try:
             print(f"  Deleting test file: {test_filename}")
-            conn.deleteFile(tid, test_filename)
+            conn.deleteFile(tree_name, test_filename)
             print("  ✓ File delete successful")
         except Exception as e:
-            print(f"  Note: File delete failed (may not exist): {e}")
+            print(f"  ✗ File delete failed: {e}")
+            delete_success = False
         
-        return True
+        if not delete_success:
+            print(f"  Warning: Test file '{test_filename}' may have been left behind")
+        
+        return delete_success
     except Exception as e:
         print(f"✗ File operations failed: {e}")
         return False
@@ -155,7 +160,8 @@ def main():
         return False
     
     # Test 5: File operations
-    if not test_file_operations(conn, tid):
+    file_ops_success = test_file_operations(conn, tid, config.get_tree_name())
+    if not file_ops_success:
         print("\n✗ File operations test failed. Check write permissions.")
         conn.close()
         return False
@@ -165,8 +171,12 @@ def main():
     print("\n✓ Connection closed successfully")
     
     print("\n" + "=" * 60)
-    print("All connectivity tests passed!")
-    print("The SMB server is ready for replay operations.")
+    if file_ops_success:
+        print("All connectivity tests passed!")
+        print("The SMB server is ready for replay operations.")
+    else:
+        print("Basic connectivity tests passed, but file operations had issues.")
+        print("The SMB server may have limited functionality.")
     print("=" * 60)
     
     return True
