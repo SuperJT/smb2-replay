@@ -195,36 +195,73 @@ def normalize_path(path: str) -> str:
     return path.strip().replace('/', '\\').lower()
 
 
-def get_tree_name_mapping(frames: pd.DataFrame) -> Dict[str, str]:
-    """Map tree IDs to share names based on Tree Connect frames within a session."""
+def get_tree_name_mapping(frames) -> Dict[str, str]:
+    """Generate tree name mapping from Tree Connect frames using optimized operations.
+    
+    Args:
+        frames: DataFrame or list of frames containing SMB2 data
+        
+    Returns:
+        Dictionary mapping tree IDs to share names
+    """
+    logger.debug(f"Generating tree name mapping from {len(frames) if hasattr(frames, '__len__') else 'unknown'} frames")
+    
     tree_mapping = {}
     if isinstance(frames, list):
         frames = pd.DataFrame(frames)
     
-    # Find Tree Connect request frames (cmd=3, not response)
-    request_frames = frames[(frames['smb2.cmd'] == '3') & 
-                           (frames['smb2.flags.response'].astype(str) != 'True')]
+    if frames.empty or 'smb2.cmd' not in frames.columns:
+        logger.debug("No frames or smb2.cmd column found, returning empty mapping")
+        return tree_mapping
     
-    for _, request_frame in request_frames.iterrows():
+    # Convert cmd column to string for consistent comparison
+    frames = frames.copy()
+    frames['smb2.cmd'] = frames['smb2.cmd'].astype(str)
+    frames['smb2.flags.response'] = frames['smb2.flags.response'].astype(str)
+    
+    # Find Tree Connect request frames (cmd=3, not response) using vectorized operations
+    request_mask = (frames['smb2.cmd'] == '3') & (frames['smb2.flags.response'] != 'True')
+    request_frames = frames[request_mask]
+    
+    logger.debug(f"Found {len(request_frames)} Tree Connect request frames")
+    
+    if request_frames.empty:
+        logger.debug("No Tree Connect request frames found")
+        return tree_mapping
+    
+    # Process request frames efficiently
+    for request_idx in request_frames.index:
+        request_frame = request_frames.loc[request_idx]
         tree_path = request_frame.get('smb2.tree', None)
+        
         if pd.isna(tree_path) or not tree_path:
             continue
+            
+        # Extract share name from path
         share_name = tree_path.split('\\')[-1] if '\\' in tree_path else tree_path
         
-        # Find corresponding response frames
+        # Find corresponding response frames efficiently
         request_frame_num = int(request_frame.get('frame.number', 0))
-        response_frames = frames[(frames['smb2.cmd'] == '3') & 
-                                (frames['smb2.flags.response'].astype(str) == 'True') &
-                                (frames['frame.number'].astype(int) > request_frame_num)]
         
-        for _, response_frame in response_frames.iterrows():
+        # Use vectorized operations to find response frames
+        response_mask = (
+            (frames['smb2.cmd'] == '3') & 
+            (frames['smb2.flags.response'] == 'True') &
+            (frames['frame.number'].astype(int) > request_frame_num)
+        )
+        response_frames = frames[response_mask]
+        
+        # Get the first matching response frame
+        if not response_frames.empty:
+            response_frame = response_frames.iloc[0]
             tid = response_frame.get('smb2.tid', None)
+            
             if tid and pd.notna(tid):
-                # Normalize the tid to ensure consistent format
                 tid_str = str(tid)
                 tree_mapping[tid_str] = share_name
-                break
+                logger.debug(f"Mapped tid {tid_str} -> {share_name}")
     
+    logger.debug(f"Generated tree mapping with {len(tree_mapping)} entries")
     return tree_mapping
 
 

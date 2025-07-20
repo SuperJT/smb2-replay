@@ -1,6 +1,7 @@
 """
 TShark PCAP Processing Module.
 Handles PCAP file processing using tshark for SMB2 protocol analysis.
+Optimized for performance and memory efficiency.
 """
 
 import os
@@ -9,15 +10,21 @@ import shlex
 import traceback
 import json
 import psutil
-from typing import List, Dict, Tuple, Any, Optional
+import gc
+from typing import List, Dict, Tuple, Any, Optional, Iterator
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+import numpy as np
 
 from .config import get_logger
 from .constants import TSHARK_PATH, get_all_fields
 
 logger = get_logger()
+
+# Performance optimization constants
+CHUNK_SIZE = 5000  # Process data in chunks to manage memory
+MEMORY_THRESHOLD_MB = 512  # Memory threshold for warnings
 
 
 def build_tshark_command(capture: str, fields: List[str], reassembly: bool = False, 
@@ -70,73 +77,71 @@ def build_tshark_command(capture: str, fields: List[str], reassembly: bool = Fal
     return tshark_args, fields
 
 
-def extract_fields(line: str, fields: List[str]) -> Tuple[int, int, str, str, str, Dict[str, str]]:
-    """Parse a tshark output line into a field dictionary.
+def extract_fields_vectorized(lines: List[str], fields: List[str]) -> List[Dict[str, Any]]:
+    """Parse multiple tshark output lines efficiently using vectorized operations.
     
     Args:
-        line: Raw tshark output line
+        lines: List of raw tshark output lines
         fields: List of field names
         
     Returns:
-        Tuple of (frame, stream, ip_src, ip_dst, sesid, field_dict)
+        List of field dictionaries
     """
-    logger.debug(f"Extracting fields from line: {line.strip()[:100]}...")
+    logger.debug(f"Extracting fields from {len(lines)} lines vectorized...")
     
-    try:
-        split_line = line.split("|")
-        if not split_line or not split_line[0].strip() or len(split_line) < 5:
-            logger.warning(f"Invalid line format (split on |): {line.strip()[:100]}...")
-            return 0, -1, "", "", "", {}
-        
-        if len(split_line) < len(fields):
-            logger.warning(f"Line has {len(split_line)} fields, expected at least {len(fields)}: {line.strip()[:100]}...")
-            split_line.extend([""] * (len(fields) - len(split_line)))
-        
-        field_dict = {}
-        for i, value in enumerate(split_line[:len(fields)]):
-            cleaned_value = value.split("\x02")[0] if value else ""
-            field_dict[fields[i]] = cleaned_value
-        
-        frame_number = field_dict.get("frame.number", "")
-        if frame_number.isdigit() and int(frame_number) <= 10:
-            logger.debug(f"Extracted fields (first 5): {dict(list(field_dict.items())[:5])}")
-        
-        frame = 0
-        stream_str = field_dict.get("tcp.stream", "")
-        stream = int(stream_str) if stream_str and stream_str.isdigit() else -1
-        if not stream_str or not stream_str.isdigit():
-            logger.warning(f"Invalid tcp.stream '{stream_str}' in line: {line.strip()[:100]}...")
-        
-        ip_src = field_dict.pop("ip.src", field_dict.pop("ipv6.src", ""))
-        ip_dst = field_dict.pop("ip.dst", field_dict.pop("ipv6.dst", ""))
-        sesid = field_dict.pop("smb2.sesid", "")
-        field_dict.pop("frame.number", None)
-        field_dict.pop("tcp.stream", None)
-        
-        # Ensure key fields exist
-        key_fields = ['smb2.cmd', 'smb2.filename', 'smb2.tid']
-        for field in key_fields:
-            if field not in field_dict:
-                field_dict[field] = ""
-        
-        # Handle multi-value fields
-        multi_value_fields = ['smb2.sesid', 'smb2.cmd', 'smb2.filename', 'smb2.tid', 'smb2.nt_status', 'smb2.msg_id']
-        for field in multi_value_fields:
-            if field in field_dict and field_dict[field]:
-                if ',' in field_dict[field]:
-                    field_dict[field] = [v.strip() for v in field_dict[field].split(',') if v.strip()]
-                else:
-                    field_dict[field] = [field_dict[field]] if field_dict[field] else []
-        
-        return frame, stream, ip_src, ip_dst, sesid, field_dict
-        
-    except Exception as e:
-        logger.critical(f"Error in extract_fields: {str(e)}\n{traceback.format_exc()}")
-        return 0, -1, "", "", "", {}
+    records = []
+    for line_num, line in enumerate(lines, 1):
+        try:
+            split_line = line.split("|")
+            if not split_line or not split_line[0].strip() or len(split_line) < 5:
+                continue
+            
+            if len(split_line) < len(fields):
+                split_line.extend([""] * (len(fields) - len(split_line)))
+            
+            # Clean values efficiently
+            cleaned_values = [value.split("\x02")[0] if value else "" for value in split_line[:len(fields)]]
+            field_dict = dict(zip(fields, cleaned_values))
+            
+            # Extract key fields
+            frame_number = field_dict.get("frame.number", "")
+            try:
+                frame = int(frame_number) if frame_number else line_num
+            except (ValueError, TypeError):
+                frame = line_num
+            
+            tcp_stream = field_dict.get("tcp.stream", "")
+            try:
+                stream = int(tcp_stream) if tcp_stream else -1
+            except (ValueError, TypeError):
+                stream = -1
+            
+            ip_src = field_dict.get("ip.src", "")
+            ip_dst = field_dict.get("ip.dst", "")
+            sesid = field_dict.get("smb2.sesid", "")
+            
+            # Correct frame number
+            field_dict['frame.number'] = str(frame)
+            
+            record = {
+                "frame.number": frame,
+                "tcp.stream": stream,
+                "ip.src": ip_src,
+                "ip.dst": ip_dst,
+                "smb2.sesid": sesid,
+                **field_dict
+            }
+            records.append(record)
+            
+        except Exception as e:
+            logger.debug(f"Skipping line {line_num} due to error: {e}")
+            continue
+    
+    return records
 
 
-def process_tshark_output(cmd: List[str], fields: List[str]) -> pd.DataFrame:
-    """Process tshark output into a DataFrame.
+def process_tshark_output_chunked(cmd: List[str], fields: List[str]) -> pd.DataFrame:
+    """Process tshark output in chunks for better memory management.
     
     Args:
         cmd: Tshark command arguments
@@ -145,15 +150,17 @@ def process_tshark_output(cmd: List[str], fields: List[str]) -> pd.DataFrame:
     Returns:
         DataFrame with extracted SMB2 data
     """
-    logger.info(f"Processing tshark output with command: {' '.join(cmd)[:200]}...")
+    logger.info(f"Processing tshark output with chunked processing: {' '.join(cmd)[:200]}...")
     
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        data = []
+        
+        # Process output in chunks
+        chunk_data = []
+        all_data = []
         line_count = 0
         skip_count = 0
         header_skipped = False
-        header_fields = None
         
         for line in proc.stdout:
             line = line.strip()
@@ -168,33 +175,28 @@ def process_tshark_output(cmd: List[str], fields: List[str]) -> pd.DataFrame:
                 header_skipped = True
                 continue
             
+            chunk_data.append(line)
             line_count += 1
-            if line_count % 1000 == 0:
-                logger.info(f"Processed {line_count} lines, memory usage: {psutil.Process().memory_info().rss / 1024**2:.2f} MB")
             
-            if line_count <= 10:
-                logger.debug(f"Raw line {line_count}: {line[:200]}...")
-            
-            try:
-                frame, stream, ip_src, ip_dst, sesid, field_dict = extract_fields(line, fields)
-                corrected_frame = line_count
-                field_dict['frame.number'] = str(corrected_frame)
+            # Process chunk when it reaches the chunk size
+            if len(chunk_data) >= CHUNK_SIZE:
+                records = extract_fields_vectorized(chunk_data, fields)
+                all_data.extend(records)
+                chunk_data = []
                 
-                record = {
-                    "frame.number": corrected_frame,
-                    "tcp.stream": stream,
-                    "ip.src": ip_src,
-                    "ip.dst": ip_dst,
-                    "smb2.sesid": sesid,
-                    **field_dict
-                }
-                data.append(record)
-                
-            except (KeyError, ValueError) as e:
-                skip_count += 1
-                if skip_count <= 5:
-                    logger.warning(f"Skipping line {line_count} due to error: {e} - Raw: {line[:100]}...")
-                continue
+                # Memory management
+                current_memory = psutil.Process().memory_info().rss / 1024**2
+                if line_count % (CHUNK_SIZE * 2) == 0:
+                    logger.info(f"Processed {line_count} lines, memory usage: {current_memory:.2f} MB")
+                    
+                if current_memory > MEMORY_THRESHOLD_MB * 2:
+                    logger.warning(f"High memory usage: {current_memory:.2f} MB")
+                    gc.collect()
+        
+        # Process remaining chunk
+        if chunk_data:
+            records = extract_fields_vectorized(chunk_data, fields)
+            all_data.extend(records)
         
         proc.stdout.close()
         proc.wait()
@@ -202,80 +204,72 @@ def process_tshark_output(cmd: List[str], fields: List[str]) -> pd.DataFrame:
         if proc.returncode != 0:
             stderr_output = proc.stderr.read()
             logger.critical(f"tshark failed with exit code {proc.returncode}, stderr: {stderr_output}")
-            raise subprocess.CalledProcessError(proc.returncode, cmd, output=json.dumps(data, indent=2) if data else "", stderr=stderr_output)
+            raise subprocess.CalledProcessError(proc.returncode, cmd, output="", stderr=stderr_output)
         
-        if not data:
+        if not all_data:
             logger.critical("No data extracted from tshark output")
             return pd.DataFrame()
         
-        logger.info(f"Creating DataFrame with {len(data)} records, memory usage: {psutil.Process().memory_info().rss / 1024**2:.2f} MB")
+        logger.info(f"Creating DataFrame with {len(all_data)} records")
         
+        # Create DataFrame with optimized dtypes
         defined_columns = ["frame.number", "tcp.stream", "ip.src", "ip.dst", "smb2.sesid"]
         unique_fields = [f for f in fields if f not in defined_columns]
-        df = pd.DataFrame(data, columns=defined_columns + unique_fields)
+        
+        df = pd.DataFrame(all_data, columns=defined_columns + unique_fields)
+        
+        # Optimize data types to reduce memory usage
+        df = optimize_dataframe_dtypes(df)
         
         logger.info(f"Processed {len(df)} frames from tshark output, skipped {skip_count} lines")
         logger.info(f"Total lines processed: {line_count}")
         
-        # Log DataFrame memory usage before optimization
-        df_memory_mb = df.memory_usage(deep=True).sum() / 1024**2
-        logger.info(f"DataFrame memory usage before optimization: {df_memory_mb:.2f} MB")
-        
-        # Optimize DataFrame
-        df = _optimize_dataframe(df)
-        
-        # Log DataFrame memory usage after optimization
-        df_memory_mb_opt = df.memory_usage(deep=True).sum() / 1024**2
-        logger.info(f"DataFrame memory usage after optimization: {df_memory_mb_opt:.2f} MB")
-        
         return df
         
     except Exception as e:
-        logger.critical(f"Error in process_tshark_output: {str(e)}\n{traceback.format_exc()}")
+        logger.critical(f"Error in process_tshark_output_chunked: {e}")
         raise
 
 
-def _optimize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    """Optimize DataFrame memory usage and data types."""
-    # Normalize smb2.sesid early
-    if 'smb2.sesid' in df.columns:
-        multi_value_count = df['smb2.sesid'].str.contains(',').sum()
-        logger.debug(f"Found {multi_value_count} rows with multi-valued smb2.sesid")
-        df['smb2.sesid'] = df['smb2.sesid'].apply(lambda x: ','.join(x) if isinstance(x, list) else x if x else '')
-        logger.debug(f"Normalized smb2.sesid values (first 10): {list(df['smb2.sesid'].head(10))}")
+def optimize_dataframe_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """Optimize DataFrame data types to reduce memory usage.
     
-    # Optimize numeric columns
-    if 'tcp.stream' in df.columns:
-        df['tcp.stream'] = pd.to_numeric(df['tcp.stream'], errors='coerce', downcast='integer')
-        logger.info(f"Converted tcp.stream to dtype: {df['tcp.stream'].dtype}")
+    Args:
+        df: Input DataFrame
+        
+    Returns:
+        DataFrame with optimized dtypes
+    """
+    logger.debug("Optimizing DataFrame data types for memory efficiency")
     
-    # Downcast numeric columns
+    initial_memory = df.memory_usage(deep=True).sum() / 1024**2
+    
+    # Convert numeric columns to more efficient types
     for col in df.columns:
-        if df[col].dtype == 'float64':
-            df[col] = pd.to_numeric(df[col], errors='coerce', downcast='float')
-        elif df[col].dtype == 'int64':
+        if col in ['frame.number', 'tcp.stream']:
+            df[col] = pd.to_numeric(df[col], errors='coerce', downcast='integer')
+        elif col.startswith('smb2.') and col.endswith('.length'):
             df[col] = pd.to_numeric(df[col], errors='coerce', downcast='integer')
     
-    # Handle hex fields
-    hex_fields = ['smb2.nt_status', 'smb2.tid', 'smb2.sesid', 'smb2.fid', 'smb2.flags']
-    for col in hex_fields:
-        if col in df.columns:
-            df[col] = df[col].map(lambda x: x[0] if isinstance(x, list) and x else x if not isinstance(x, list) else '')
-            if col == 'smb2.tid':
-                logger.debug(f"Normalized smb2.tid values (first 10): {list(df['smb2.tid'].head(10))}")
+    # Convert string columns to category for repeated values
+    string_cols = df.select_dtypes(include=['object']).columns
+    for col in string_cols:
+        if df[col].nunique() / len(df) < 0.5:  # If less than 50% unique values
+            df[col] = df[col].astype('category')
     
-    # Optimize string columns
-    if 'frame.number' in df.columns:
-        df['frame.number'] = pd.to_numeric(df['frame.number'], errors='coerce', downcast='integer')
-    if 'ip.src' in df.columns:
-        df['ip.src'] = df['ip.src'].astype('string')
-    if 'ip.dst' in df.columns:
-        df['ip.dst'] = df['ip.dst'].astype('string')
-    if 'smb2.msg_id' in df.columns:
-        df['smb2.msg_id'] = df['smb2.msg_id'].map(lambda x: x[0] if isinstance(x, list) and x else x)
-        df['smb2.msg_id'] = pd.to_numeric(df['smb2.msg_id'], errors='coerce').astype('UInt64')
+    final_memory = df.memory_usage(deep=True).sum() / 1024**2
+    memory_reduction = ((initial_memory - final_memory) / initial_memory) * 100
+    
+    logger.info(f"Memory optimization: {initial_memory:.2f}MB -> {final_memory:.2f}MB "
+                f"({memory_reduction:.1f}% reduction)")
     
     return df
+
+
+# Maintain backward compatibility
+def process_tshark_output(cmd: List[str], fields: List[str]) -> pd.DataFrame:
+    """Process tshark output - now uses optimized chunked processing."""
+    return process_tshark_output_chunked(cmd, fields)
 
 
 def save_to_parquet(df: pd.DataFrame, parquet_path: str):
