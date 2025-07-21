@@ -12,6 +12,7 @@ from typing import Optional
 from smbprotocol.connection import Connection
 from smbprotocol.session import Session
 from smbprotocol.tree import TreeConnect
+
 from smbprotocol.open import (
     Open, 
     ImpersonationLevel, 
@@ -22,6 +23,11 @@ from smbprotocol.open import (
     CreateOptions, 
     FileInformationClass
 )
+from smbprotocol.file_info import FileDispositionInformation
+
+
+import logging
+logging.basicConfig(level=logging.INFO)
 
 from smbreplay.config import get_config
 
@@ -53,9 +59,17 @@ def test_smb_login(server_ip: str, username: str, password: str) -> Optional[tup
 
 def test_tree_connect(session: Session, server_ip: str, share_name: str) -> Optional[TreeConnect]:
     """Test tree connection and return TreeConnect if successful."""
+    # Use share_name from config if not provided
+    if not share_name:
+        config = get_config()
+        share_name = config.get_tree_name()
+    share_path = f"\\{server_ip}\\{share_name}"
     print(f"Testing tree connect to share '{share_name}'...")
+    print(f"  [DEBUG] Share path: {share_path}")
+    print(f"  [DEBUG] Session username: {getattr(session, 'username', 'unknown')}")
     try:
-        tree = TreeConnect(session, f"\\\\{server_ip}\\{share_name}")
+        tree = TreeConnect(session, share_path)
+        print(f"  [DEBUG] TreeConnect object created: {tree}")
         tree.connect()
         print(f"✓ Tree connect successful")
         return tree
@@ -96,31 +110,35 @@ def test_file_operations(tree: TreeConnect, test_filename: str = 'smb2_replay_te
         # Create file
         print(f"  Creating file: {test_filename}")
         handle = Open(tree, test_filename)
-        handle.create(
-            ImpersonationLevel.Impersonation,
-            FilePipePrinterAccessMask.GENERIC_READ | FilePipePrinterAccessMask.GENERIC_WRITE,
-            FileAttributes.FILE_ATTRIBUTE_NORMAL,
-            ShareAccess.FILE_SHARE_READ | ShareAccess.FILE_SHARE_WRITE,
-            CreateDisposition.FILE_OVERWRITE_IF,
-            CreateOptions.FILE_NON_DIRECTORY_FILE
-        )
-        print(f"  ✓ File create successful")
-        handle.close()
-        print(f"  ✓ File close successful")
+        try:
+            handle.create(
+                ImpersonationLevel.Impersonation,
+                FilePipePrinterAccessMask.GENERIC_READ | FilePipePrinterAccessMask.GENERIC_WRITE,
+                FileAttributes.FILE_ATTRIBUTE_NORMAL,
+                ShareAccess.FILE_SHARE_READ | ShareAccess.FILE_SHARE_WRITE,
+                CreateDisposition.FILE_OVERWRITE_IF,
+                CreateOptions.FILE_NON_DIRECTORY_FILE
+            )
+            print(f"  ✓ File create successful")
+        finally:
+            handle.close()
+            print(f"  ✓ File close successful")
+
         # Delete file
         print(f"  Deleting test file: {test_filename}")
         handle = Open(tree, test_filename)
-        handle.create(
-            ImpersonationLevel.Impersonation,
-            FilePipePrinterAccessMask.DELETE,
-            FileAttributes.FILE_ATTRIBUTE_NORMAL,
-            ShareAccess.FILE_SHARE_READ | ShareAccess.FILE_SHARE_WRITE,
-            CreateDisposition.FILE_OPEN,
-            CreateOptions.FILE_NON_DIRECTORY_FILE
-        )
-        handle.delete()
-        handle.close()
-        print(f"  ✓ File delete successful")
+        try:
+            handle.create(
+                ImpersonationLevel.Impersonation,
+                FilePipePrinterAccessMask.DELETE,
+                FileAttributes.FILE_ATTRIBUTE_NORMAL,
+                ShareAccess.FILE_SHARE_READ | ShareAccess.FILE_SHARE_WRITE,
+                CreateDisposition.FILE_OPEN,
+                CreateOptions.FILE_NON_DIRECTORY_FILE | CreateOptions.FILE_DELETE_ON_CLOSE
+            )
+        finally:
+            handle.close()
+            print(f"  ✓ File delete successful")
         return True
     except Exception as e:
         print(f"✗ File operations failed: {e}")

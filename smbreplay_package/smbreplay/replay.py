@@ -1,3 +1,26 @@
+from smbprotocol.exceptions import SMBException
+from smbreplay.utils import get_share_relative_path
+from smbreplay.handlers.lock import handle_lock as lock_handler
+from smbreplay.handlers.create import handle_create
+from smbreplay.handlers.flush import handle_flush
+from smbreplay.handlers.ioctl import handle_ioctl
+from smbreplay.handlers.query_directory import handle_query_directory
+from smbreplay.handlers.query_info import handle_query_info
+from smbreplay.handlers.negotiate import handle_negotiate
+from smbreplay.handlers.session_setup import handle_session_setup
+from smbreplay.handlers.logoff import handle_logoff
+from smbreplay.handlers.tree_disconnect import handle_tree_disconnect
+from smbreplay.handlers.tree_connect import handle_tree_connect
+from smbreplay.handlers.echo import handle_echo
+from smbreplay.handlers.set_info import handle_set_info
+from smbreplay.handlers.oplock_break import handle_oplock_break
+from smbreplay.handlers.cancel import handle_cancel
+from smbreplay.handlers.change_notify import handle_change_notify
+from smbreplay.handlers.response import handle_response
+from smbreplay.handlers.close import handle_close as close_handler
+from smbreplay.handlers.read import handle_read as read_handler
+from smbreplay.handlers.write import handle_write as write_handler
+from smbreplay.handlers.lease_break import handle_lease_break
 """
 SMB2 Replay Module.
 Handles SMB2 session replay using smbprotocol library.
@@ -19,12 +42,23 @@ from .constants import SMB2_OP_NAME_DESC
 logger = get_logger()
 
 
+
 class SMB2Replayer:
     """Handles SMB2 session replay functionality."""
+
+    def handle_read(self, op: Dict[str, Any]):
+        """Handle Read operation using modular handler."""
+        return read_handler(self, op)
+
+    def handle_close(self, op: Dict[str, Any]):
+        """Handle Close operation using modular handler."""
+        return close_handler(self, op)
 
     
     def __init__(self):
         
+        logger = get_logger()  # Initialize logger here
+        self.logger = logger
         self.config = get_config()
         self.connection = None
         self.tid_mapping = {}
@@ -41,7 +75,7 @@ class SMB2Replayer:
             enabled: Whether to send ping before replay starts
         """
         self.ping_enabled = enabled
-        logger.info(f"Ping functionality {'enabled' if enabled else 'disabled'}")
+        self.logger.info(f"Ping functionality {'enabled' if enabled else 'disabled'}")
     
     def send_replay_start_ping(self, server_ip: Optional[str] = None):
         """Send a ping to the replay server to indicate replay is starting.
@@ -58,7 +92,7 @@ class SMB2Replayer:
             server_ip = replay_config.get("server_ip", "127.0.0.1")
             
         try:
-            logger.info(f"🔄 Sending replay start ping to replay server: {server_ip}")
+            self.logger.info(f"🔄 Sending replay start ping to replay server: {server_ip}")
             result = subprocess.run(
                 ['ping', '-c', '1', server_ip],
                 capture_output=True,
@@ -67,18 +101,18 @@ class SMB2Replayer:
             )
             
             if result.returncode == 0:
-                logger.info(f"✅ Replay start ping successful to {server_ip}")
-                logger.debug(f"Ping output: {result.stdout.strip()}")
+                self.logger.info(f"✅ Replay start ping successful to {server_ip}")
+                self.logger.debug(f"Ping output: {result.stdout.strip()}")
             else:
-                logger.warning(f"⚠️ Replay start ping failed to {server_ip}")
-                logger.debug(f"Ping error: {result.stderr.strip()}")
+                self.logger.warning(f"⚠️ Replay start ping failed to {server_ip}")
+                self.logger.debug(f"Ping error: {result.stderr.strip()}")
                 
         except subprocess.TimeoutExpired:
-            logger.warning(f"⚠️ Replay start ping timeout to {server_ip}")
+            self.logger.warning(f"⚠️ Replay start ping timeout to {server_ip}")
         except FileNotFoundError:
-            logger.warning("⚠️ Ping command not found - skipping replay start ping")
+            self.logger.warning("⚠️ Ping command not found - skipping replay start ping")
         except Exception as e:
-            logger.warning(f"⚠️ Replay start ping error: {e}")
+            self.logger.warning(f"⚠️ Replay start ping error: {e}")
     
     def set_reset_mode(self, mode: str):
         """Set the reset mode for replay operations.
@@ -87,10 +121,10 @@ class SMB2Replayer:
             mode: 'complete' for full reset, 'cleanup' for selective cleanup
         """
         if mode not in ['complete', 'cleanup']:
-            logger.warning(f"Invalid reset mode '{mode}', using 'complete'")
+            self.logger.warning(f"Invalid reset mode '{mode}', using 'complete'")
             mode = 'complete'
         self.reset_mode = mode
-        logger.info(f"Reset mode set to: {mode}")
+        self.logger.info(f"Reset mode set to: {mode}")
     
     def enable_response_validation(self, enabled: bool = True):
         """Enable or disable response validation.
@@ -100,7 +134,7 @@ class SMB2Replayer:
         """
         self.response_validation['enabled'] = enabled
         self.response_validation['results'] = []
-        logger.info(f"Response validation {'enabled' if enabled else 'disabled'}")
+        self.logger.info(f"Response validation {'enabled' if enabled else 'disabled'}")
     
     def validate_response(self, operation: Dict[str, Any], actual_status: str, actual_error: Optional[str] = None):
         """Validate that the actual server response matches the expected response from Parquet.
@@ -124,7 +158,7 @@ class SMB2Replayer:
             # For now, assume success (0x00000000) for request frames
             # In a full implementation, we would look up the corresponding response frame
             expected_status = '0x00000000'
-            logger.debug(f"Request frame {frame_number}: Assuming expected status {expected_status}")
+            self.logger.debug(f"Request frame {frame_number}: Assuming expected status {expected_status}")
         
         # Normalize status codes for comparison
         expected_hex = expected_status if expected_status.startswith('0x') else f"0x{expected_status:08x}"
@@ -147,12 +181,12 @@ class SMB2Replayer:
         self.response_validation['results'].append(validation_result)
         
         if status_match:
-            logger.debug(f"✅ Response validation passed: {command} (Frame {frame_number}) - Status: {actual_hex}")
+            self.logger.debug(f"✅ Response validation passed: {command} (Frame {frame_number}) - Status: {actual_hex}")
         else:
-            logger.warning(f"❌ Response validation failed: {command} (Frame {frame_number})")
-            logger.warning(f"   Expected: {expected_hex}, Actual: {actual_hex}")
+            self.logger.warning(f"❌ Response validation failed: {command} (Frame {frame_number})")
+            self.logger.warning(f"   Expected: {expected_hex}, Actual: {actual_hex}")
             if actual_error:
-                logger.warning(f"   Error: {actual_error}")
+                self.logger.warning(f"   Error: {actual_error}")
     
     def get_response_validation_results(self) -> Dict[str, Any]:
         """Get response validation results.
@@ -186,89 +220,92 @@ class SMB2Replayer:
 
     def handle_ioctl(self, op: Dict[str, Any]):
         """Handle IOCTL operation (stub)."""
-        logger.debug(f"IOCTL: Not implemented. op={op}")
+        self.logger.debug(f"IOCTL: Not implemented. op={op}")
 
     def handle_query_directory(self, op: Dict[str, Any]):
         """Handle Query Directory operation (stub)."""
-        logger.debug(f"Query Directory: Not implemented. op={op}")
+        self.logger.debug(f"Query Directory: Not implemented. op={op}")
 
     def handle_query_info(self, op: Dict[str, Any]):
         """Handle Query Info operation (stub)."""
-        logger.debug(f"Query Info: Not implemented. op={op}")
+        self.logger.debug(f"Query Info: Not implemented. op={op}")
 
     def handle_negotiate(self, op: Dict[str, Any]):
-        logger.info("Negotiate: Using already established connection for replay. Parameters: %s", op)
+        self.logger.info("Negotiate: Using already established connection for replay. Parameters: %s", op)
         # Optionally validate parameters or log them
 
     def handle_session_setup(self, op: Dict[str, Any]):
-        logger.info("Session Setup: Using already established session for replay. Parameters: %s", op)
+        self.logger.info("Session Setup: Using already established session for replay. Parameters: %s", op)
         # Optionally validate parameters or log them
 
     def handle_logoff(self, op: Dict[str, Any]):
-        logger.info("Logoff: Skipping, as session teardown is handled at the end of replay. Parameters: %s", op)
+        self.logger.info("Logoff: Skipping, as session teardown is handled at the end of replay. Parameters: %s", op)
         # Optionally disconnect session if this is the last operation
 
     def handle_tree_disconnect(self, op: Dict[str, Any]):
-        logger.info("Tree Disconnect: Skipping, as tree teardown is handled at the end of replay. Parameters: %s", op)
+        self.logger.info("Tree Disconnect: Skipping, as tree teardown is handled at the end of replay. Parameters: %s", op)
         # Optionally disconnect tree if this is the last operation
 
     def handle_flush(self, op: Dict[str, Any]):
-        logger.info("Flush: Not implemented. Parameters: %s", op)
+        self.logger.info("Flush: Not implemented. Parameters: %s", op)
 
     def handle_lock(self, op: Dict[str, Any]):
-        logger.info("Lock: Not implemented. Parameters: %s", op)
+        return lock_handler(self, op)
 
     def handle_echo(self, op: Dict[str, Any]):
-        logger.info("Echo: Not implemented. Parameters: %s", op)
+        self.logger.info("Echo: Not implemented. Parameters: %s", op)
 
     def handle_set_info(self, op: Dict[str, Any]):
-        logger.info("Set Info: Not implemented. Parameters: %s", op)
+        self.logger.info("Set Info: Not implemented. Parameters: %s", op)
 
     def handle_oplock_break(self, op: Dict[str, Any]):
-        logger.info("Oplock Break: Not implemented. Parameters: %s", op)
+        self.logger.info("Oplock Break: Not implemented. Parameters: %s", op)
+
+    def handle_lease_break(self, op: Dict[str, Any]):
+        """Handle Lease Break operation using modular handler (SMB3)."""
+        return handle_lease_break(self, op)
 
     def get_replay_config(self) -> Dict[str, Any]:
         """Get replay configuration."""
         return self.config.replay_config.copy()
     
-    def determine_create_type(self, operation: Dict[str, Any], all_operations: List[Dict[str, Any]]) -> str:
+    def determine_create_type_and_action(self, operation: Dict[str, Any], all_operations: List[Dict[str, Any]]) -> (str, str):
         """
-        Determine if a create operation should create a file or directory.
-        
-        Args:
-            operation: The create operation
-            all_operations: All operations in the session
-            
-        Returns:
-            'file' or 'directory'
+        Determine if a create operation should create a file or directory, and if it is a new create or open.
+        Returns a tuple: (type, action) where type is 'file' or 'directory', and action is 'create' or 'open'.
+        Raises ValueError if no matching response is found in the trace.
         """
-        filename = operation.get('smb2.filename', '')
-        frame_number = operation.get('Frame', 'N/A')
-        
-        # Look for the corresponding response frame
+        import json
+        msg_id = operation.get('smb2.msg_id')
         for resp_op in all_operations:
-            if (resp_op.get('smb2.cmd') == '5' and 
-                resp_op.get('smb2.flags.response') == 'True' and
-                resp_op.get('smb2.filename') == filename):
-                
+            if (
+                resp_op.get('smb2.cmd') == '5'
+                and resp_op.get('smb2.flags.response') == 'True'
+                and resp_op.get('smb2.msg_id') == msg_id
+            ):
                 create_action = resp_op.get('smb2.create.action', '')
                 if create_action == 'FILE_CREATED':
-                    # New file was created
-                    return 'file'
+                    return 'file', 'create'
                 elif create_action == 'FILE_OPENED':
-                    # Existing file was opened
-                    return 'file'
+                    return 'file', 'open'
                 elif create_action == 'DIRECTORY_CREATED':
-                    # New directory was created
-                    return 'directory'
+                    return 'directory', 'create'
                 elif create_action == 'DIRECTORY_OPENED':
-                    # Existing directory was opened
-                    return 'directory'
-                break
-        
-        # Default to file if we can't determine
-        logger.debug(f"Could not determine create type for {filename}, defaulting to file")
-        return 'file'
+                    return 'directory', 'open'
+                else:
+                    logger.warning(f"Unknown create.action '{create_action}' for msg_id {msg_id} in response frame {resp_op.get('Frame')}")
+        # Map SMB2 command codes to handler methods
+        # 0: Negotiate, 1: Session Setup, 2: Logoff, 3: Tree Connect, 4: Tree Disconnect, 5: Create, 6: Close, 7: Flush, 8: Read, 9: Write, 10: Lock, ...
+        # If we get here, the trace is missing a response for this create
+        import json
+        logger.error(f"No matching SMB2 CREATE response found in trace for msg_id: {msg_id}")
+        logger.error(f"  Request operation frame: {json.dumps(operation, indent=2, default=str)}")
+        candidate_responses = [resp_op for resp_op in all_operations if resp_op.get('smb2.cmd') == '5' and resp_op.get('smb2.flags.response') == 'True']
+        logger.error(f"  All candidate SMB2 CREATE response frames:")
+        for resp_op in candidate_responses:
+            logger.error(f"    Frame {resp_op.get('Frame')}: msg_id={resp_op.get('smb2.msg_id')} action={resp_op.get('smb2.create.action')} status={resp_op.get('smb2.nt_status')}")
+        logger.error(f"  (End of candidate response frames)")
+        raise ValueError(f"No matching SMB2 CREATE response found in trace for msg_id: {msg_id}")
     
     def reset_target_to_fresh_state(self, tree: TreeConnect, share_path: str):
         """
@@ -392,10 +429,10 @@ class SMB2Replayer:
             tree: TreeConnect object to the share
             paths: Set of all paths that will be accessed during replay
         """
-        logger.info("Cleaning up existing files and directories for clean replay")
+        self.logger.info("Cleaning up existing files and directories for clean replay")
         
         if not paths:
-            logger.info("No paths to clean up")
+            self.logger.info("No paths to clean up")
             return
         
         # Normalize paths
@@ -424,21 +461,21 @@ class SMB2Replayer:
                 file_open.close()
                 
                 files_deleted += 1
-                logger.debug(f"Deleted file: {path}")
+                self.logger.debug(f"Deleted file: {path}")
                 
             except SMBException as e:
                 if "STATUS_OBJECT_NAME_NOT_FOUND" in str(e):
                     # File doesn't exist, which is fine
-                    logger.debug(f"File not found (already deleted): {path}")
+                    self.logger.debug(f"File not found (already deleted): {path}")
                 elif "STATUS_ACCESS_DENIED" in str(e):
                     # Access denied, might be a directory or protected file
-                    logger.debug(f"Access denied for deletion: {path}")
+                    self.logger.debug(f"Access denied for deletion: {path}")
                 else:
-                    logger.debug(f"Failed to delete {path}: {e}")
+                    self.logger.debug(f"Failed to delete {path}: {e}")
         
         logger.info(f"Cleanup completed: {files_deleted} files deleted, {dirs_deleted} directories deleted")
 
-    def setup_pre_trace_state(self, tree: TreeConnect, session: Session, selected_operations: List[Dict[str, Any]]):
+    def setup_pre_trace_state(self, tree: 'TreeConnect', session: 'Session', selected_operations: list):
         """
         Set up the file system state on the lab server before replaying operations using smbprotocol.
         This ensures all necessary directories and files exist before replay begins.
@@ -450,140 +487,115 @@ class SMB2Replayer:
             selected_operations: List of selected operation dictionaries
         """
         logger.info("Setting up pre-trace state for selected operations")
-
-        # First, reset the target to a completely fresh state
         replay_config = self.get_replay_config()
         tree_name = replay_config.get("tree_name", "testshare")
-        
+
         if self.reset_mode == 'complete':
             self.reset_target_to_fresh_state(tree, tree_name)
         else:
             logger.info("Using cleanup mode - skipping complete reset")
 
-        all_paths = set()
-        created_files = set()
-        existing_files = set()
-
-        # Collect all valid paths and created files
+        # --- NEW LOGIC: Find all files and parent directories referenced by CREATE/WRITE requests ---
+        file_paths = set()
         for op in selected_operations:
-            filename = op.get('smb2.filename', '')
-            if filename and filename not in ['.', '..', 'N/A', '']:
-                all_paths.add(filename)
-            if (op.get('smb2.cmd') == '5' and
-                op.get('smb2.flags.response') == 'True' and
-                op.get('smb2.create.action') == 'FILE_CREATED'):
-                created_files.add(filename)
-            elif (op.get('smb2.cmd') == '5' and
-                  op.get('smb2.flags.response') == 'True' and
-                  op.get('smb2.create.action') == 'FILE_OPENED'):
-                existing_files.add(filename)
+            cmd = int(op.get('smb2.cmd', -1))
+            is_request = op.get('smb2.flags.response') != 'True'
+            if cmd in [5, 9] and is_request:
+                filename = op.get('smb2.filename', '')
+                rel_filename = get_share_relative_path(self, filename)
+                if rel_filename and rel_filename not in ['.', '..', 'N/A', '']:
+                    file_paths.add(rel_filename)
 
-        if not all_paths:
-            logger.info("No valid paths found for pre-trace state setup")
-            return
-
-        # Clean up any remaining files that might conflict
-        self.cleanup_existing_files(tree, all_paths)
-
-        # Normalize paths and extract directories
+        # Build parent directories for all files
         directories = set()
-        normalized_paths = set()
-        
-        for path in all_paths:
-            # Normalize path separators (handle both \ and /)
-            normalized_path = path.replace('/', '\\')
-            normalized_paths.add(normalized_path)
-            
-            # Extract parent directories for all paths with multiple parts
-            parts = normalized_path.split('\\')
+        for rel_path in file_paths:
+            parts = rel_path.split('\\')
             if len(parts) > 1:
                 for i in range(1, len(parts)):
                     dir_path = '\\'.join(parts[:i])
                     if dir_path:
                         directories.add(dir_path)
 
-        logger.info(f"Found {len(directories)} directories and {len(normalized_paths)} files to process")
+        logger.info(f"Pre-trace: will create {len(directories)} directories and {len(file_paths)} files if missing.")
+        logger.debug(f"Directories to create: {sorted(directories)}")
+        logger.debug(f"Files to create: {sorted(file_paths)}")
 
-        # Create directories in proper order (parents first)
+        # Create parent directories (deepest first)
         created_dirs = set()
         sorted_dirs = sorted(directories, key=lambda x: (x.count('\\'), x))
-        
         for dir_path in sorted_dirs:
-            # Create each directory along the path step by step
             parts = dir_path.split('\\')
             current_path = ""
-            
             for i, part in enumerate(parts):
                 if i == 0:
                     current_path = part
                 else:
                     current_path = current_path + '\\' + part
-                
-                # Skip if we already created this directory
                 if current_path in created_dirs:
                     continue
-                
                 try:
                     dir_open = Open(tree, current_path)
                     dir_open.create(
-                        impersonation_level=0,  # SECURITY_ANONYMOUS
-                        desired_access=0x80000000,  # GENERIC_READ
-                        file_attributes=0x00000010,  # FILE_ATTRIBUTE_DIRECTORY
-                        share_access=0x00000001,  # FILE_SHARE_READ
-                        create_disposition=3,  # FILE_OPEN_IF - works better for existing directories
-                        create_options=1  # FILE_DIRECTORY_FILE - correct value
+                        impersonation_level=0,
+                        desired_access=0x80000000,
+                        file_attributes=0x00000010,
+                        share_access=0x00000001,
+                        create_disposition=3,
+                        create_options=1
                     )
                     created_dirs.add(current_path)
                     logger.debug(f"Created directory: {current_path}")
                     dir_open.close()
                 except SMBException as e:
                     if "STATUS_OBJECT_NAME_COLLISION" not in str(e):
-                        # If directory creation fails, it might be because the path is a file
-                        # or the parent doesn't exist - log but continue
                         logger.warning(f"Failed to create directory {current_path}: {e}")
-                        # Don't add to created_dirs since it failed
-                        # Break out of the loop for this path since we can't create nested dirs
                         break
                     else:
-                        # Directory already exists, consider it created
                         created_dirs.add(current_path)
                         logger.debug(f"Directory already exists: {current_path}")
 
-        # Create files that existed before the selected operations
+        # Pre-create all files (as empty files)
         files_created = 0
-        for path in normalized_paths:
-            if path not in directories and path not in created_files:
-                try:
-                    file_open = Open(tree, path)
-                    file_open.create(
-                        impersonation_level=0,  # SECURITY_ANONYMOUS
-                        desired_access=0x80000000 | 0x40000000,  # GENERIC_READ | GENERIC_WRITE
-                        file_attributes=0,  # FILE_ATTRIBUTE_NORMAL
-                        share_access=0x00000001,  # FILE_SHARE_READ
-                        create_disposition=1,  # FILE_OPEN_IF
-                        create_options=0  # No special options
-                    )
-                    files_created += 1
-                    logger.debug(f"Created pre-existing file: {path}")
-                    file_open.close()
-                except SMBException as e:
-                    # If file creation fails, it might be because the parent directory doesn't exist
-                    # or the path is invalid - log but continue
-                    logger.warning(f"Failed to create file {path}: {e}")
+        for rel_path in file_paths:
+            try:
+                file_open = Open(tree, rel_path)
+                file_open.create(
+                    impersonation_level=0,
+                    desired_access=0x80000000 | 0x40000000,
+                    file_attributes=0,
+                    share_access=0x00000001,
+                    create_disposition=3,
+                    create_options=0
+                )
+                files_created += 1
+                logger.debug(f"Pre-created file: {rel_path}")
+                file_open.close()
+            except SMBException as e:
+                logger.warning(f"Failed to pre-create file {rel_path}: {e}")
 
         logger.info(f"Pre-trace state setup complete:")
         logger.info(f"  - {len(created_dirs)} directories created/exist")
-        logger.info(f"  - {files_created} pre-existing files created")
-        logger.info(f"  - {len(created_files)} files will be created during replay")
-        logger.info(f"  - {len(existing_files)} files already exist and will be opened")
-        
-        if len(created_dirs) < len(directories):
-            logger.warning(f"Only {len(created_dirs)}/{len(directories)} directories could be created")
-            logger.warning("Some nested directories may not exist - replay may fail for those paths")
-            logger.info("Consider using a different SMB server or share that supports nested directory creation")
-        
-        # Validate file system structure
-        self._validate_file_system_structure(tree, normalized_paths, created_dirs)
+        logger.info(f"  - {files_created} files pre-created for open/write/create")
+        logger.info(f"  - {len(file_paths)} total file paths pre-created")
+
+        # --- Close SMB session and connection after pre-trace setup ---
+        try:
+            logger.info("Closing SMB session and connection after pre-trace setup to force new establishment for replay.")
+            try:
+                tree.disconnect()
+            except Exception as e:
+                logger.debug(f"Error disconnecting tree after pre-trace: {e}")
+            try:
+                session.disconnect()
+            except Exception as e:
+                logger.debug(f"Error disconnecting session after pre-trace: {e}")
+            try:
+                if hasattr(session, 'connection'):
+                    session.connection.disconnect()
+            except Exception as e:
+                logger.debug(f"Error disconnecting connection after pre-trace: {e}")
+        except Exception as e:
+            logger.warning(f"Error during SMB cleanup after pre-trace: {e}")
     
     def _validate_file_system_structure(self, tree: TreeConnect, paths: set, created_dirs: set):
         """
@@ -621,181 +633,12 @@ class SMB2Replayer:
             logger.info(f"✅ All {len(paths)} paths are accessible for replay")
     
     def handle_tree_connect(self, session: Session, op: Dict[str, Any]):
-        """Handle Tree Connect operation using smbprotocol.
-
-        Args:
-            session: smbprotocol Session object
-            op: Operation dictionary
-        """
-        share_path = op.get('smb2.tree', '')
-        # Ensure UNC path format: \\server\share
-        if not share_path.startswith('\\\\'):
-            # You may need to prepend server name if not present
-            server = session.connection.server_name
-            share_path = f"\\\\{server}\\{share_path}"
-
-        try:
-            tree = TreeConnect(session, share_path)
-            tree.connect()
-            self.state['last_new_tid'] = tree
-            logger.debug(f"Tree Connect: {share_path}, tree object={tree}")
-            
-            # Validate response - successful tree connect should return STATUS_SUCCESS (0x00000000)
-            self.validate_response(op, "0x00000000")
-            
-        except SMBException as e:
-            logger.error(f"Tree Connect failed for {share_path}: {e}")
-            self.state['last_new_tid'] = None
-            
-            # Extract NT status from error message
-            actual_status = "0x00000000"  # Default to success
-            if "STATUS_" in str(e):
-                # Try to extract status code from error message
-                error_str = str(e)
-                if "0x" in error_str:
-                    # Extract hex status code
-                    import re
-                    hex_match = re.search(r'0x[0-9a-fA-F]{8}', error_str)
-                    if hex_match:
-                        actual_status = hex_match.group(0)
-            
-            # Validate response against expected status
-            self.validate_response(op, actual_status, str(e))
-    
-    def handle_create(self, tree: TreeConnect, op: Dict[str, Any], all_operations: Optional[List[Dict[str, Any]]] = None):
-        """Handle Create operation using smbprotocol.
-
-        Args:
-            tree: TreeConnect object for the share
-            op: Operation dictionary
-            all_operations: All operations in the session (for determining create type)
-        """
-        filename = op.get('smb2.filename', '')
-        
-        # Determine if this should be a file or directory
-        create_type = 'file'  # Default
-        if all_operations:
-            create_type = self.determine_create_type(op, all_operations)
-        
-        # Read all create parameters from the operation data
-        impersonation_level = int(op.get('smb2.impersonation_level', 0))  # Default SECURITY_ANONYMOUS
-        desired_access = int(op.get('smb2.desired_access', 0x80000000 | 0x40000000))  # Default GENERIC_READ | GENERIC_WRITE
-        file_attributes = int(op.get('smb2.file_attributes', 0))  # Default FILE_ATTRIBUTE_NORMAL
-        share_access = int(op.get('smb2.share_access', 0x00000001))  # Default FILE_SHARE_READ
-        create_disposition = int(op.get('smb2.create_disposition', 2))  # Default FILE_CREATE
-        create_options = int(op.get('smb2.create_options', 0))  # Default no special options
-        
-        # Adjust parameters based on create type
-        if create_type == 'directory':
-            file_attributes = 0x00000010  # FILE_ATTRIBUTE_DIRECTORY
-            create_options = 1  # FILE_DIRECTORY_FILE
-            desired_access = 0x80000000  # GENERIC_READ for directories
-            logger.debug(f"Creating directory: {filename}")
-        else:
-            logger.debug(f"Creating file: {filename}")
-
-        logger.info(f"Create operation parameters for {filename}:")
-        logger.info(f"  Type: {create_type}")
-        logger.info(f"  impersonation_level: {impersonation_level}")
-        logger.info(f"  desired_access: {desired_access}")
-        logger.info(f"  file_attributes: {file_attributes}")
-        logger.info(f"  share_access: {share_access}")
-        logger.info(f"  create_disposition: {create_disposition}")
-        logger.info(f"  create_options: {create_options}")
-
-        try:
-            file_open = Open(tree, filename)
-            # Create with parameters from the operation data
-            file_open.create(
-                impersonation_level=impersonation_level,
-                desired_access=desired_access,
-                file_attributes=file_attributes,
-                share_access=share_access,
-                create_disposition=create_disposition,
-                create_options=create_options
-            )
-            self.state['last_new_fid'] = file_open
-            logger.info(f"Create: {filename}, Open object={file_open}")
-            
-            # Validate response - successful create should return STATUS_SUCCESS (0x00000000)
-            self.validate_response(op, "0x00000000")
-            
-        except SMBException as e:
-            logger.error(f"Create failed for {filename}: {e}")
-            self.state['last_new_fid'] = None
-            
-            # Extract NT status from error message
-            actual_status = "0x00000000"  # Default to success
-            if "STATUS_" in str(e):
-                # Try to extract status code from error message
-                error_str = str(e)
-                if "0x" in error_str:
-                    # Extract hex status code
-                    import re
-                    hex_match = re.search(r'0x[0-9a-fA-F]{8}', error_str)
-                    if hex_match:
-                        actual_status = hex_match.group(0)
-            
-            # Validate response against expected status
-            self.validate_response(op, actual_status, str(e))
-    
-    def handle_close(self, op: Dict[str, Any]):
-        """Handle Close operation using smbprotocol.
-
-        Args:
-            op: Operation dictionary
-        """
-        original_fid = op.get('smb2.fid', '')
-        file_open = self.fid_mapping.get(original_fid)
-
-        if file_open:
-            try:
-                file_open.close()
-                logger.debug(f"Close: fid={original_fid}")
-            except SMBException as e:
-                logger.error(f"Close failed for fid {original_fid}: {e}")
-        else:
-            logger.warning(f"Close: No mapping found for fid {original_fid}")
-    
-    def handle_read(self, op: Dict[str, Any]):
-        """Handle Read operation using smbprotocol.
-
-        Args:
-            op: Operation dictionary
-        """
-        original_fid = op.get('smb2.fid', '')
-        file_open = self.fid_mapping.get(original_fid)
-
-        if file_open:
-            offset = int(op.get('smb2.read.offset', 0))
-            length = int(op.get('smb2.read.length', 1024))
-            try:
-                data = file_open.read(offset, length)
-                logger.debug(f"Read: fid={original_fid}, offset={offset}, length={length}, read_bytes={len(data)}")
-            except SMBException as e:
-                logger.error(f"Read failed for fid {original_fid}: {e}")
-        else:
-            logger.warning(f"Read: No mapping found for fid {original_fid}")
+        """Handle Tree Connect operation using handler module."""
+        return handle_tree_connect(self, session, op)
     
     def handle_write(self, op: Dict[str, Any]):
-        """Handle Write operation using smbprotocol.
-
-        Args:
-            op: Operation dictionary
-        """
-        original_fid = op.get('smb2.fid', '')
-        file_open = self.fid_mapping.get(original_fid)
-
-        if file_open:
-            offset = int(op.get('smb2.write.offset', 0))
-            data = bytes.fromhex(op.get('smb2.write_data', '')) if op.get('smb2.write_data') else b'test_data'
-            try:
-                bytes_written = file_open.write(data, offset)
-                logger.debug(f"Write: fid={original_fid}, offset={offset}, data_length={len(data)}, bytes_written={bytes_written}")
-            except SMBException as e:
-                logger.error(f"Write failed for fid {original_fid}: {e}")
-        else:
-            logger.warning(f"Write: No mapping found for fid {original_fid}")
+        """Handle Write operation using modular handler."""
+        return write_handler(self, op)
     
     def handle_response(self, op: Dict[str, Any], cmd: int):
         """Handle response operations to update mappings.
@@ -857,26 +700,19 @@ class SMB2Replayer:
             logger.error(f"Cancel failed for fid {original_fid}: {e}")
 
 
+
     def replay_session(self, selected_operations: List[Dict[str, Any]], 
-                    status_callback: Optional[Callable] = None) -> Dict[str, Any]:
-        """Replay selected SMB2 operations using smbprotocol.
+                      status_callback: Optional[Callable] = None) -> Dict[str, Any]:
+        r"""
+        Replay selected SMB2 operations using smbprotocol.
 
         Args:
-            selected_operations: List of selected operation dictionaries
+            selected_operations: List of SMB2 operation dictionaries to replay
             status_callback: Optional callback for status updates
 
         Returns:
-            Dictionary with replay results
+            Dictionary with replay results and statistics
         """
-        logger.info("Starting SMB2 session replay")
-
-        if not selected_operations:
-            logger.info("No operations selected for replay")
-            return {"success": False, "error": "No operations selected for replay"}
-
-        if status_callback is None:
-            status_callback = lambda msg: logger.info(f"Replay Status: {msg}")
-
         # Extract server configuration and force reload
         self.config._load_config()  # Force reload from disk
         replay_config = self.get_replay_config()
@@ -890,12 +726,23 @@ class SMB2Replayer:
         logger.debug(f"Using replay config: server_ip={server_ip}, domain={domain}, "
                     f"username={username}, tree_name={default_tree_name}, max_wait={max_wait}")
 
+
         try:
-            # Establish SMB connection
+            # --- Pre-trace setup: use a temporary connection/session/tree ---
+            status_callback("Setting up pre-trace state...")
+            logger.debug(f"Connecting to SMB server for pre-trace: {server_ip}")
+            pre_connection = Connection(uuid.uuid4(), server_ip, 445)
+            pre_connection.connect(timeout=max_wait)
+            pre_session = Session(pre_connection, username, password, require_encryption=False)
+            pre_session.connect()
+            pre_tree = TreeConnect(pre_session, f"\\\\{server_ip}\\{default_tree_name}")
+            pre_tree.connect()
+            self.setup_pre_trace_state(pre_tree, pre_session, selected_operations)
+            # Pre-trace setup closes its own connection/session/tree
+
+            # --- Main replay: use a fresh connection/session/tree ---
             status_callback("Connecting to SMB server...")
             logger.debug(f"Connecting to SMB server: {server_ip}")
-
-            # Setup smbprotocol connection/session/tree
             connection = Connection(uuid.uuid4(), server_ip, 445)
             connection.connect(timeout=max_wait)
             session = Session(connection, username, password, require_encryption=False)
@@ -904,10 +751,6 @@ class SMB2Replayer:
             tree.connect()
             logger.info("Successfully connected to SMB server and share")
             status_callback(f"Connected to tree: {default_tree_name}")
-
-            # Setup pre-trace state
-            status_callback("Setting up pre-trace state...")
-            self.setup_pre_trace_state(tree, session, selected_operations)
 
             # Send replay start ping to differentiate from pre-trace setup
             status_callback("Sending replay start ping...")
@@ -918,6 +761,21 @@ class SMB2Replayer:
             self.fid_mapping = {}
             self.state = {'last_new_tid': None, 'last_new_fid': None}
 
+
+            # Summarize command types in selected_operations
+            from collections import Counter
+            cmd_counter = Counter()
+            for op in selected_operations:
+                try:
+                    cmd_raw = op.get('smb2.cmd', '-1')
+                    cmd = int(cmd_raw) if str(cmd_raw).isdigit() else -1
+                    cmd_counter[cmd] += 1
+                except Exception:
+                    cmd_counter['error'] += 1
+            logger.info(f"Main replay: processing {len(selected_operations)} operations. Command summary: {dict(cmd_counter)}")
+
+            logger.debug(f"Main replay: processing {len(selected_operations)} operations")
+
             # Process selected operations
             successful_ops = 0
             failed_ops = 0
@@ -925,6 +783,7 @@ class SMB2Replayer:
             issues = []
 
             for i, op in enumerate(selected_operations, 1):
+                logger.debug(f"Replay loop: operation {i}/{len(selected_operations)}: cmd={op.get('smb2.cmd')} resp={op.get('smb2.flags.response')} frame={op.get('Frame')} name={op.get('Command')}")
                 try:
                     cmd_raw = op.get('smb2.cmd', '-1')
                     cmd = int(cmd_raw) if str(cmd_raw).isdigit() else -1
@@ -949,16 +808,31 @@ class SMB2Replayer:
 
                     if not is_response:  # Request
                         handler = self.command_handlers.get(cmd)
+                        logger.debug(f"Dispatching to handler for cmd={cmd} ({SMB2_OP_NAME_DESC.get(cmd, ('Unknown',))[0]})")
                         if handler:
                             # Pass correct objects for each handler
                             if cmd == 3:
+                                logger.info(f"Calling Tree Connect handler for operation {i}")
                                 handler(session, op)
                             elif cmd == 5:
+                                logger.info(f"Calling Create handler for operation {i} (filename={op.get('smb2.filename')})")
                                 handler(tree, op, selected_operations)  # Pass all operations for create type determination
-                            elif cmd in [6, 8, 9, 12, 15]:
+                            elif cmd == 6:
+                                logger.info(f"Calling Close handler for operation {i} (fid={op.get('smb2.fid')})")
+                                handler(op)
+                            elif cmd == 8:
+                                logger.info(f"Calling Read handler for operation {i} (fid={op.get('smb2.fid')})")
+                                handler(op)
+                            elif cmd == 9:
+                                logger.info(f"Calling Write handler for operation {i} (fid={op.get('smb2.fid')})")
+                                handler(op)
+                            elif cmd == 10:
+                                self.logger.info(f"Calling Lock handler for operation {i} (fid={op.get('smb2.fid')})")
+                                handler(op)
+                            elif cmd in [12, 15]:
                                 handler(op)
                             else:
-                                logger.warning(f"Command {cmd} ({SMB2_OP_NAME_DESC.get(cmd, ('Unknown',))[0]}) not yet implemented")
+                                pass
                             successful_ops += 1
                         else:
                             logger.warning(f"Invalid command code: {cmd}")
@@ -1019,16 +893,32 @@ class SMB2Replayer:
                 "successful_operations": 0,
                 "failed_operations": len(selected_operations)
             }
+
+            return results
+
+        except Exception as e:
+            error_msg = f"Replay failed: {e}"
+            logger.critical(error_msg)
+            status_callback(error_msg)
+
+            return {
+                "success": False,
+                "error": str(e),
+                "total_operations": len(selected_operations),
+                "successful_operations": 0,
+                "failed_operations": len(selected_operations)
+            }
     @property
     def command_handlers(self):
         """Get command handlers for SMB2 operations."""
+        from smbreplay.handlers.create import handle_create
         return {
             0: self.handle_negotiate,
             1: self.handle_session_setup,
             2: self.handle_logoff,
             3: self.handle_tree_connect,
             4: self.handle_tree_disconnect,
-            5: self.handle_create,
+            5: lambda tree, op, all_operations=None: handle_create(self, tree, op, all_operations),
             6: self.handle_close,
             7: self.handle_flush,
             8: self.handle_read,
@@ -1042,6 +932,7 @@ class SMB2Replayer:
             16: self.handle_query_info,
             17: self.handle_set_info,
             18: self.handle_oplock_break,
+            19: self.handle_lease_break,  # SMB2_LEASE_BREAK (SMB3)
         }
     
     def validate_operations(self, operations: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -1164,4 +1055,4 @@ def validate_operations(operations: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 def get_supported_commands() -> Dict[int, str]:
     """Get list of supported SMB2 commands."""
-    return get_replayer().get_supported_commands() 
+    return get_replayer().get_supported_commands()

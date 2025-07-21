@@ -1,7 +1,20 @@
-"""
-Shared utility functions for SMB2 Replay System.
-Contains common helper functions used across multiple modules.
-"""
+import re
+from typing import Any
+
+def get_share_relative_path(self, filename: str) -> str:
+    """
+    Given a filename (possibly a UNC path), return the path relative to the share root.
+    E.g. '10.216.29.169\\share\\dir\\file.txt' -> 'dir\\file.txt'
+    Handles both forward and backward slashes.
+    """
+    parts = re.split(r'[\\/]+', filename)
+    # If the first part looks like an IP or hostname, and the second is the share, skip both
+    if len(parts) > 2 and (re.match(r'^(\\)?[0-9a-zA-Z_.:-]+$', parts[0]) and ('$' in parts[1] or len(parts[1]) > 0)):
+        return '\\'.join(parts[2:])
+    # If the first part is the share name, skip it
+    if len(parts) > 1 and ('$' in parts[0] or len(parts[0]) > 0):
+        return '\\'.join(parts[1:])
+    return filename
 
 import os
 import json

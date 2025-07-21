@@ -1,3 +1,5 @@
+# For SMB2/3 locking support, install latest smbprotocol from GitHub:
+git+https://github.com/jborean93/smbprotocol.git
 # Core dependencies for SMB2 replay project
 pandas>=2.0.0
 pyarrow>=10.0.0
