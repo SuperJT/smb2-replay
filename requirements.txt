@@ -4,7 +4,7 @@ pyarrow>=10.0.0
 numpy>=1.24.0
 
 # SMB protocol implementation for replay functionality
-impacket>=0.11.0
+smbprotocol>=1.8.0
 
 # Network and protocol libraries
 paramiko>=3.0.0

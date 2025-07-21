@@ -220,6 +220,9 @@ class SessionManager:
                 
                 # Handle special fields
                 if field in ["smb2.create.action", "smb2.ioctl.function"]:
+                    if not isinstance(mapping, dict):
+                        logger.error(f"FIELD_MAPPINGS['{field}']['mapping'] must be a dict, got {type(mapping)}")
+                        continue
                     filtered_frames[f"{field}_desc"] = filtered_frames[field].apply(
                         lambda x: mapping.get(str(x), "") if pd.notna(x) and str(x).strip() != "" and str(x) != "None" else ""
                     )
@@ -309,7 +312,9 @@ class SessionManager:
                 'smb2.tid': tid,
                 'smb2.nt_status': row.get('smb2.nt_status', 'N/A'),
                 'smb2.flags.response': row.get('smb2.flags.response', 'False'),
-                'smb2.fid': row.get('smb2.fid', 'N/A')
+                'smb2.fid': row.get('smb2.fid', 'N/A'),
+                'smb2.msg_id': row.get('smb2.msg_id', 'N/A'),
+                'is_response': is_response
             }
             
             # Add selected fields
@@ -426,7 +431,7 @@ class SessionManager:
 
 
 # Global session manager instance
-_session_manager = None
+_session_manager: Optional[SessionManager] = None   
 
 
 def get_session_manager() -> SessionManager:

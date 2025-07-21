@@ -8,7 +8,7 @@ import uuid
 import pandas as pd
 import subprocess
 from typing import Dict, List, Any
-from impacket.nt_errors import ERROR_MESSAGES
+from smbprotocol.header import NtStatus
 
 # Configuration constants
 SEP = 4 * " "
@@ -332,9 +332,11 @@ FIELD_MAPPINGS = {
         "description": "Maps SMB2 command codes to operation names."
     },
     "smb2.nt_status": {
-        "mapping": {f"0x{k:08X}": v[0] for k, v in ERROR_MESSAGES.items()},
+        "mapping": {f"0x{getattr(NtStatus, name):08X}": name
+                    for name in dir(NtStatus)
+                    if name.isupper() and isinstance(getattr(NtStatus, name), int)},
         "normalize": lambda x: normalize_hex_field(x, "smb2.nt_status"),
-        "description": "Maps NT status codes to error names (impacket)."
+        "description": "Maps NT status codes to error names (smbprotocol)."
     },
     "smb2.ioctl.function": {
         "mapping": {str(f"0x{v:08X}"): k for k, v in FSCTL_CONSTANTS.items()},
@@ -353,8 +355,8 @@ FIELD_MAPPINGS = {
     },
     "smb2.msg_id": {
         "mapping": {},
-        "normalize": lambda x: normalize_hex_field(x, "smb2.msg_id"),
-        "description": "Normalizes message ID to hex format."
+        "normalize": lambda x: str(int(float(x.split(',')[0].strip()))) if x and pd.notna(x) and isinstance(x, str) else str(int(x)) if x and pd.notna(x) else None,
+        "description": "Keeps message ID as decimal string for comparison."
     },
     "smb2.fid": {
         "mapping": {},

@@ -70,7 +70,7 @@ def build_tshark_command(capture: str, fields: List[str], reassembly: bool = Fal
     return tshark_args, fields
 
 
-def extract_fields(line: str, fields: List[str]) -> Tuple[int, int, str, str, str, Dict[str, str]]:
+def extract_fields(line: str, fields: list[str]) -> tuple[int, int, str, str, str, dict[str, str | set[str]]]:
     """Parse a tshark output line into a field dictionary.
     
     Args:
@@ -92,24 +92,38 @@ def extract_fields(line: str, fields: List[str]) -> Tuple[int, int, str, str, st
             logger.warning(f"Line has {len(split_line)} fields, expected at least {len(fields)}: {line.strip()[:100]}...")
             split_line.extend([""] * (len(fields) - len(split_line)))
         
-        field_dict = {}
+        field_dict: dict[str, str | set[str]] = {}
         for i, value in enumerate(split_line[:len(fields)]):
             cleaned_value = value.split("\x02")[0] if value else ""
             field_dict[fields[i]] = cleaned_value
         
         frame_number = field_dict.get("frame.number", "")
-        if frame_number.isdigit() and int(frame_number) <= 10:
+        # Ensure frame_number is a str for isdigit/int
+        if isinstance(frame_number, set):
+            frame_number_str = next(iter(frame_number), "")
+        else:
+            frame_number_str = frame_number
+        if frame_number_str.isdigit() and int(frame_number_str) <= 10:
             logger.debug(f"Extracted fields (first 5): {dict(list(field_dict.items())[:5])}")
         
         frame = 0
         stream_str = field_dict.get("tcp.stream", "")
-        stream = int(stream_str) if stream_str and stream_str.isdigit() else -1
-        if not stream_str or not stream_str.isdigit():
-            logger.warning(f"Invalid tcp.stream '{stream_str}' in line: {line.strip()[:100]}...")
+        if isinstance(stream_str, set):
+            stream_str_val = next(iter(stream_str), "")
+        else:
+            stream_str_val = stream_str
+        stream = int(stream_str_val) if stream_str_val and stream_str_val.isdigit() else -1
+        if not stream_str_val or not stream_str_val.isdigit():
+            logger.warning(f"Invalid tcp.stream '{stream_str_val}' in line: {line.strip()[:100]}...")
         
         ip_src = field_dict.pop("ip.src", field_dict.pop("ipv6.src", ""))
         ip_dst = field_dict.pop("ip.dst", field_dict.pop("ipv6.dst", ""))
-        sesid = field_dict.pop("smb2.sesid", "")
+        sesid: set[str] | str = field_dict.pop("smb2.sesid", set())
+        # If sesid is a set, join as comma-separated string for sesid_value
+        if isinstance(sesid, set):
+            sesid_value = ','.join(sorted(sesid))
+        else:
+            sesid_value = str(sesid)
         field_dict.pop("frame.number", None)
         field_dict.pop("tcp.stream", None)
         
@@ -123,12 +137,20 @@ def extract_fields(line: str, fields: List[str]) -> Tuple[int, int, str, str, st
         multi_value_fields = ['smb2.sesid', 'smb2.cmd', 'smb2.filename', 'smb2.tid', 'smb2.nt_status', 'smb2.msg_id']
         for field in multi_value_fields:
             if field in field_dict and field_dict[field]:
-                if ',' in field_dict[field]:
-                    field_dict[field] = [v.strip() for v in field_dict[field].split(',') if v.strip()]
+                val = field_dict[field]
+                if isinstance(val, str):
+                    if ',' in val:
+                        field_dict[field] = {v.strip() for v in val.split(',') if v.strip()}
+                    else:
+                        field_dict[field] = {val} if val else set()
                 else:
-                    field_dict[field] = [field_dict[field]] if field_dict[field] else []
+                    str_val = str(val)
+                    if ',' in str_val:
+                        field_dict[field] = {v.strip() for v in str_val.split(',') if v.strip()}
+                    else:
+                        field_dict[field] = {str_val} if str_val else set()
         
-        return frame, stream, ip_src, ip_dst, sesid, field_dict
+        return int(frame), int(stream), str(ip_src), str(ip_dst), str(sesid_value), field_dict
         
     except Exception as e:
         logger.critical(f"Error in extract_fields: {str(e)}\n{traceback.format_exc()}")
@@ -155,6 +177,9 @@ def process_tshark_output(cmd: List[str], fields: List[str]) -> pd.DataFrame:
         header_skipped = False
         header_fields = None
         
+        if proc.stdout is None:
+            logger.critical("proc.stdout is None; cannot read tshark output")
+            return pd.DataFrame()
         for line in proc.stdout:
             line = line.strip()
             if not line:
@@ -180,13 +205,14 @@ def process_tshark_output(cmd: List[str], fields: List[str]) -> pd.DataFrame:
                 corrected_frame = line_count
                 field_dict['frame.number'] = str(corrected_frame)
                 
+                # When constructing the record, if sesid is a set, join as comma-separated string for DataFrame
                 record = {
                     "frame.number": corrected_frame,
                     "tcp.stream": stream,
                     "ip.src": ip_src,
                     "ip.dst": ip_dst,
-                    "smb2.sesid": sesid,
-                    **field_dict
+                    "smb2.sesid": ','.join(sesid) if isinstance(sesid, set) else sesid,
+                    **{k: (','.join(v) if isinstance(v, set) else v) for k, v in field_dict.items()}
                 }
                 data.append(record)
                 
@@ -196,11 +222,12 @@ def process_tshark_output(cmd: List[str], fields: List[str]) -> pd.DataFrame:
                     logger.warning(f"Skipping line {line_count} due to error: {e} - Raw: {line[:100]}...")
                 continue
         
-        proc.stdout.close()
+        if proc.stdout is not None:
+            proc.stdout.close()
         proc.wait()
         
         if proc.returncode != 0:
-            stderr_output = proc.stderr.read()
+            stderr_output = proc.stderr.read() if proc.stderr is not None else ""
             logger.critical(f"tshark failed with exit code {proc.returncode}, stderr: {stderr_output}")
             raise subprocess.CalledProcessError(proc.returncode, cmd, output=json.dumps(data, indent=2) if data else "", stderr=stderr_output)
         

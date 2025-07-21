@@ -12,7 +12,7 @@ from typing import Dict, List, Any, Optional, Union
 import pandas as pd
 
 
-def format_bytes(size: int) -> str:
+def format_bytes(size: float) -> str:
     """Format bytes to human readable format.
     
     Args:
@@ -315,7 +315,7 @@ def flatten_dict(d: Dict[str, Any], parent_key: str = '', sep: str = '.') -> Dic
     Returns:
         Flattened dictionary
     """
-    items = []
+    items: list[tuple[str, Any]] = []
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):

@@ -7,7 +7,7 @@ import os
 import sys
 import pickle
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, TypedDict
 
 # Default configurations
 DEFAULT_PCAP_CONFIG = {
@@ -32,6 +32,11 @@ VERBOSITY_TO_LOGGING = {
     3: logging.DEBUG      # Same as 2, but can extend for finer granularity later
 }
 
+# Add a TypedDict for pcap_config to ensure correct types
+class PcapConfig(TypedDict, total=False):
+    capture_path: Optional[str]
+    verbose_level: int
+
 
 class ConfigManager:
     """Manages configuration settings and persistence."""
@@ -50,32 +55,49 @@ class ConfigManager:
                 config_dir = os.path.expanduser('~/.config/smbreplay')
         
         self.config_dir = config_dir
-        os.makedirs(self.config_dir, exist_ok=True)
         self.config_file = os.path.join(self.config_dir, "config.pkl")
         
         # Initialize configurations
-        self.pcap_config = DEFAULT_PCAP_CONFIG.copy()
+        self.pcap_config: PcapConfig = DEFAULT_PCAP_CONFIG.copy()  # type: ignore
         self.replay_config = DEFAULT_REPLAY_CONFIG.copy()
         
-        # Set up traces folder
-        self.traces_folder = os.environ.get('TRACES_FOLDER', os.path.expanduser('~/cases'))
-        os.makedirs(self.traces_folder, exist_ok=True)
+        # Set up traces folder path (but don't create it yet)
+        self.traces_folder: str = os.environ.get('TRACES_FOLDER', os.path.expanduser('~/cases'))
         
         # Session management
-        self.current_session_id = None
-        self.current_case_id = None
-        self.current_trace_name = None
+        self.current_session_id: Optional[str] = None
+        self.current_case_id: Optional[str] = None
+        self.current_trace_name: Optional[str] = None
         
-        # Load existing configuration
-        self._load_config()
-        
-        # Initialize logging
-        self.logger = self._setup_logging()
+        # Lazy initialization flags
+        self._config_loaded = False
+        self._logger = None
+        self._dirs_created = False
         
         # Initialize other globals
-        self.operations = []
+        self.operations: List[dict] = []
         self.all_cells_run = False
         
+    def _ensure_dirs_created(self):
+        """Ensure directories are created (lazy initialization)."""
+        if not self._dirs_created:
+            os.makedirs(self.config_dir, exist_ok=True)
+            os.makedirs(self.traces_folder, exist_ok=True)
+            self._dirs_created = True
+    
+    def _ensure_config_loaded(self):
+        """Ensure configuration is loaded (lazy initialization)."""
+        if not self._config_loaded:
+            self._load_config()
+            self._config_loaded = True
+    
+    @property
+    def logger(self):
+        """Lazy-loaded logger property."""
+        if self._logger is None:
+            self._logger = self._setup_logging()
+        return self._logger
+    
     def _load_config(self):
         """Load configuration from pickle file if it exists."""
         if os.path.exists(self.config_file):
@@ -96,9 +118,12 @@ class ConfigManager:
                     })
                 
                 # Load session management fields
-                self.current_session_id = loaded_config.get('current_session_id')
-                self.current_case_id = loaded_config.get('current_case_id')
-                self.current_trace_name = loaded_config.get('current_trace_name')
+                session_id = loaded_config.get('current_session_id')
+                self.current_session_id = str(session_id) if session_id is not None else None
+                case_id = loaded_config.get('current_case_id')
+                self.current_case_id = str(case_id) if case_id is not None else None
+                trace_name = loaded_config.get('current_trace_name')
+                self.current_trace_name = str(trace_name) if trace_name is not None else None
                     
                 # Only print in debug mode to avoid noise
                 if self.pcap_config.get('verbose_level', 0) >= 2:
@@ -114,16 +139,26 @@ class ConfigManager:
         logger = logging.getLogger('smbreplay')
         logger.handlers = []  # Clear existing handlers
         
-        # Stream handler for stdout
+        # Stream handler for stdout with broken pipe handling
         stream_handler = logging.StreamHandler(sys.stdout)
         stream_handler.setFormatter(logging.Formatter(
             '%(asctime)s - %(levelname)s - [%(asctime)s] %(message)s', 
             datefmt='%a %b %d %H:%M:%S %Y'
         ))
+        
+        # Add a filter to handle broken pipe errors gracefully
+        class BrokenPipeFilter(logging.Filter):
+            def filter(self, record):
+                try:
+                    return True
+                except BrokenPipeError:
+                    return False
+        
+        stream_handler.addFilter(BrokenPipeFilter())
         logger.addHandler(stream_handler)
         
-        # File handler for persistent logs
-        os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
+        # File handler for persistent logs (create dirs only when needed)
+        self._ensure_dirs_created()
         log_file = os.path.join(self.config_dir, 'smbreplay.log')
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(logging.Formatter(
@@ -133,8 +168,9 @@ class ConfigManager:
         logger.addHandler(file_handler)
         
         # Set logger level from pcap_config
+        verbose_level = self.pcap_config.get("verbose_level", 0)
         logger.setLevel(VERBOSITY_TO_LOGGING.get(
-            self.pcap_config.get("verbose_level", 0), 
+            verbose_level if verbose_level is not None else 0,
             logging.CRITICAL
         ))
         
@@ -142,6 +178,7 @@ class ConfigManager:
     
     def save_config(self):
         """Save current configuration to pickle file."""
+        self._ensure_dirs_created()  # Create dirs only when saving
         try:
             with open(self.config_file, 'wb') as f:
                 pickle.dump({
@@ -157,6 +194,7 @@ class ConfigManager:
     
     def set_verbosity(self, level: int):
         """Set verbosity level and update logging."""
+        self._ensure_config_loaded()  # Load config if needed
         self.pcap_config["verbose_level"] = level
         self.logger.setLevel(VERBOSITY_TO_LOGGING.get(level, logging.CRITICAL))
         self.save_config()
@@ -164,21 +202,26 @@ class ConfigManager:
     
     def update_pcap_config(self, **kwargs):
         """Update PCAP configuration."""
+        self._ensure_config_loaded()
         self.pcap_config.update(kwargs)
         self.save_config()
     
     def update_replay_config(self, **kwargs):
         """Update replay configuration."""
+        self._ensure_config_loaded()
         self.replay_config.update(kwargs)
         self.save_config()
     
     def get_capture_path(self) -> Optional[str]:
         """Get current capture path."""
-        return self.pcap_config.get("capture_path")
+        self._ensure_config_loaded()
+        value = self.pcap_config.get("capture_path")
+        return str(value) if value is not None else None
     
     def set_capture_path(self, path: str):
         """Set capture path."""
-        self.pcap_config["capture_path"] = path
+        self._ensure_config_loaded()
+        self.pcap_config["capture_path"] = str(path) if path is not None else None
         self.save_config()
     
     def get_traces_folder(self) -> str:
@@ -187,101 +230,133 @@ class ConfigManager:
     
     def set_traces_folder(self, path: str):
         """Set traces folder path."""
-        self.traces_folder = os.path.expanduser(path)
-        os.makedirs(self.traces_folder, exist_ok=True)
+        self.traces_folder = str(os.path.expanduser(path))
+        # Only create the directory when it's actually needed
+        self._dirs_created = False  # Reset flag to recreate dirs with new path
         self.save_config()
     
     def get_verbosity_level(self) -> int:
         """Get current verbosity level."""
-        return self.pcap_config.get('verbose_level', 0)
+        self._ensure_config_loaded()
+        value = self.pcap_config.get('verbose_level', 0)
+        return int(value) if value is not None else 0
 
     def set_session_id(self, session_id: str) -> None:
         """Set the current session ID for analysis/replay."""
+        self._ensure_config_loaded()
         self.current_session_id = session_id
         self.save_config()
         self.logger.info(f"Set session ID to {session_id}")
 
     def get_session_id(self) -> Optional[str]:
         """Get the current session ID."""
+        self._ensure_config_loaded()
         return self.current_session_id
 
     def set_case_id(self, case_id: str) -> None:
         """Set the current case ID."""
+        self._ensure_config_loaded()
         self.current_case_id = case_id
         self.save_config()
         self.logger.info(f"Set case ID to {case_id}")
 
     def get_case_id(self) -> Optional[str]:
         """Get the current case ID."""
+        self._ensure_config_loaded()
         return self.current_case_id
 
     def set_trace_name(self, trace_name: str) -> None:
         """Set the current trace name."""
+        self._ensure_config_loaded()
         self.current_trace_name = trace_name
         self.save_config()
         self.logger.info(f"Set trace name to {trace_name}")
 
     def get_trace_name(self) -> Optional[str]:
         """Get the current trace name."""
+        self._ensure_config_loaded()
         return self.current_trace_name
 
     # Replay configuration methods
     def get_server_ip(self) -> str:
         """Get the replay server IP address."""
-        return self.replay_config.get("server_ip", "10.216.29.241")
+        self._ensure_config_loaded()
+        value = self.replay_config.get("server_ip", "10.216.29.241")
+        return str(value) if value is not None else "10.216.29.241"
 
     def set_server_ip(self, server_ip: str) -> None:
         """Set the replay server IP address."""
+        self._ensure_config_loaded()
         self.replay_config["server_ip"] = server_ip
         self.save_config()
         self.logger.info(f"Set server IP to {server_ip}")
 
     def get_domain(self) -> str:
         """Get the replay server domain."""
-        return self.replay_config.get("domain", "nas-deep.local")
+        self._ensure_config_loaded()
+        value = self.replay_config.get("domain", "nas-deep.local")
+        return str(value) if value is not None else "nas-deep.local"
 
     def set_domain(self, domain: str) -> None:
         """Set the replay server domain."""
+        self._ensure_config_loaded()
         self.replay_config["domain"] = domain
         self.save_config()
         self.logger.info(f"Set domain to {domain}")
 
     def get_username(self) -> str:
         """Get the replay server username."""
-        return self.replay_config.get("username", "jtownsen")
+        self._ensure_config_loaded()
+        value = self.replay_config.get("username", "jtownsen")
+        return str(value) if value is not None else "jtownsen"
 
     def set_username(self, username: str) -> None:
         """Set the replay server username."""
+        self._ensure_config_loaded()
         self.replay_config["username"] = username
         self.save_config()
         self.logger.info(f"Set username to {username}")
 
     def get_password(self) -> str:
         """Get the replay server password."""
-        return self.replay_config.get("password", "PASSWORD")
+        self._ensure_config_loaded()
+        value = self.replay_config.get("password", "PASSWORD")
+        return str(value) if value is not None else "PASSWORD"
 
     def set_password(self, password: str) -> None:
         """Set the replay server password."""
+        self._ensure_config_loaded()
         self.replay_config["password"] = password
         self.save_config()
         self.logger.info(f"Set password to {password}")
 
     def get_tree_name(self) -> str:
         """Get the replay server tree/share name."""
-        return self.replay_config.get("tree_name", "2pm")
+        self._ensure_config_loaded()
+        value = self.replay_config.get("tree_name", "2pm")
+        return str(value) if value is not None else "2pm"
 
     def set_tree_name(self, tree_name: str) -> None:
         """Set the replay server tree/share name."""
+        self._ensure_config_loaded()
         self.replay_config["tree_name"] = tree_name
         self.save_config()
         self.logger.info(f"Set tree name to {tree_name}")
 
     def get_max_wait(self) -> float:
         """Get the replay server maximum wait time."""
-        return self.replay_config.get("max_wait", 5.0)
+        self._ensure_config_loaded()
+        value = self.replay_config.get("max_wait", 5.0)
+        if isinstance(value, (int, float, str)):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return 5.0
+        return 5.0
 
     def set_max_wait(self, max_wait: float) -> None:
         """Set the replay server maximum wait time."""
+        self._ensure_config_loaded()
         self.replay_config["max_wait"] = max_wait
         self.save_config()
         self.logger.info(f"Set max wait to {max_wait}")
@@ -326,7 +401,7 @@ class ConfigManager:
 
 
 # Global configuration instance
-_config_manager = None
+_config_manager: Optional[ConfigManager] = None
 
 
 def get_config() -> ConfigManager:

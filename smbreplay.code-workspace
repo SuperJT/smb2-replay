@@ -1,12 +1,12 @@
 {
-    "folders": [
-        {
-            "path": "."
-        },
-        {
-            "path": "../../cases"
-        }
-    ],
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../../cases"
+		}
+	],
     "settings": {
         "python.defaultInterpreterPath": "./venv/bin/python",
         "python.terminal.activateEnvironment": true,

@@ -23,42 +23,36 @@ from .tshark_processor import (
 logger = get_logger()
 
 
-def normalize_sesid(sesid_str) -> List[str]:
-    """Normalize smb2.sesid values, handling lists and commas."""
+def normalize_sesid(sesid_str) -> set[str]:
+    """Normalize smb2.sesid values, handling lists and commas, returns set[str]."""
     logger.debug(f"Normalizing sesid: {str(sesid_str)[:200]}")
-    
     try:
         if pd.isna(sesid_str) or not sesid_str:
-            return []
-        
-        if isinstance(sesid_str, list):
-            sesids = list(dict.fromkeys(item.strip() for item in sesid_str if item and item != "0x0000000000000000"))
+            return set()
+        if isinstance(sesid_str, (list, set)):
+            sesids = {item.strip() for item in sesid_str if item and item != "0x0000000000000000"}
         else:
-            sesids = list(dict.fromkeys(item.strip() for item in sesid_str.split(',') if item and item != "0x0000000000000000"))
-        
+            sesids = {item.strip() for item in str(sesid_str).split(',') if item and item != "0x0000000000000000"}
         return sesids
     except Exception as e:
         logger.critical(f"Error in normalize_sesid: {str(e)}\n{traceback.format_exc()}")
-        return []
+        return set()
 
 
-def normalize_cmd(cmd_str) -> List[str]:
-    """Normalize smb2.cmd values, handling lists and commas."""
+def normalize_cmd(cmd_str) -> set[str]:
+    """Normalize smb2.cmd values, handling lists and commas, returns set[str]."""
     logger.debug(f"Normalizing cmd: {str(cmd_str)[:200]}")
-    
     try:
-        if pd.isna(cmd_str).any() if isinstance(cmd_str, (list, pd.Series)) else pd.isna(cmd_str):
-            return []
+        if pd.isna(cmd_str).any() if isinstance(cmd_str, (list, pd.Series, set)) else pd.isna(cmd_str):
+            return set()
         if not cmd_str:
-            return []
-        
-        if isinstance(cmd_str, list):
-            return [item.strip() for item in cmd_str if item]
-        
-        return [item.strip() for item in cmd_str.split(',') if item]
+            return set()
+        if isinstance(cmd_str, (list, set)):
+            return {item.strip() for item in cmd_str if item}
+        return {item.strip() for item in str(cmd_str).split(',') if item}
     except Exception as e:
         logger.critical(f"Error in normalize_cmd: {str(e)}\n{traceback.format_exc()}")
-        return []
+        return set()
 
 
 def save_session_metadata(case_number: str, trace_name: str, sessions: Dict[str, pd.DataFrame], 

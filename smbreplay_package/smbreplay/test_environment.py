@@ -20,7 +20,6 @@ def test_imports():
         ('paramiko', 'SSH connections'),
         ('scapy', 'Network packet analysis'),
         ('psutil', 'System monitoring'),
-        ('impacket', 'SMB protocol library'),
         ('click', 'CLI interface'),
         ('dotenv', 'Environment configuration'),
     ]

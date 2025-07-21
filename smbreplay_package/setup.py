@@ -36,15 +36,18 @@ def get_requirements():
             return [line.strip() for line in f if line.strip() and not line.startswith("#")]
     except FileNotFoundError:
         return [
-            "pandas>=1.5.0",
+            "pandas>=2.0.0",
             "pyarrow>=10.0.0",
-            "numpy>=1.21.0",
-            "paramiko>=2.9.0",
-            "scapy>=2.4.5",
-            "psutil>=5.8.0",
-            "impacket>=0.9.24",
+            "numpy>=1.24.0",
+            "smbprotocol>=1.8.0",
+            "paramiko>=3.0.0",
+            "scapy>=2.5.0",
+            "psutil>=5.9.0",
+            "pytest>=7.0.0",
+            "pytest-cov>=4.0.0",
             "click>=8.0.0",
-            "python-dotenv>=0.19.0",
+            "argparse>=1.4.0",
+            "python-dotenv>=1.0.0",
         ]
 
 setup(
