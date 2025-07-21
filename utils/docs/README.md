@@ -59,15 +59,6 @@ This directory contains various utility scripts for testing, debugging, and mana
 - Directory listing
 - File operations (create, delete)
 
-### `test_simple_connectivity.py`
-**Purpose**: Basic connectivity and import testing  
-**Usage**: `python utils/test_simple_connectivity.py`  
-**Tests**:
-- Module imports
-- Configuration loading
-- Socket connectivity
-- SMBConnection object creation
-
 ### `test_ping_functionality.py`
 **Purpose**: Test ping functionality for replay differentiation  
 **Usage**: `python utils/test_ping_functionality.py`  

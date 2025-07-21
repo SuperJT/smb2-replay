@@ -12,7 +12,7 @@ Develop a system to capture, store, and replay SMB2 network traffic for diagnost
 ### Approach
 - **Capture**: Extract SMB2 packets from PCAP files using local `tshark`
 - **Storage**: Store data in Parquet files by session (`smb2.sesid`) with JSON metadata
-- **Replay**: Replicate file operations using `impacket` library on a lab server
+- **Replay**: Replicate file operations using `smbprotocol` library on a lab server
 - **Analysis**: Python package with CLI and programmatic interfaces for automation
 - **Development**: Modular design with separate components for different functionalities
 
@@ -73,7 +73,6 @@ Configuration is managed through the Python package's user-specific configuratio
 
 1. **Set up trace directory** (optional):
    ```bash 
-
    export TRACES_FOLDER="~/cases"  # Default location
    mkdir -p "$TRACES_FOLDER"
    ```
@@ -123,7 +122,6 @@ smbreplay_package/
        server_ip="10.216.29.241",
        domain="nas-deep.local",
        username="jtownsen",
-       password="your_password",
        tree_name="2pm"
    )
    
@@ -183,12 +181,13 @@ smbreplay_package/
 - **Modular Design**: Separate modules for different functionalities
 - **User-Specific Configuration**: Private configuration stored in user's home directory
 - **Session Management**: Load, filter, and analyze SMB2 sessions with session ID resolution
-- **Replay Engine**: Execute SMB2 operations on target server with impacket integration
+- **Replay Engine**: Execute SMB2 operations on target server using smbprotocol
 - **CLI Interface**: Command-line tools for automation with debug verbosity support
 - **Error Handling**: Comprehensive error handling and logging
 - **Testing**: Built-in tests for package verification
 - **Brief Output**: Compact session display format for large files
-- **Protocol Support**: Complete SMB2 protocol constants and field mappings for impacket
+- **Protocol Support**: Complete SMB2 protocol constants and field mappings
+- **Type Safety**: All code is type-checked with mypy (see mypy.ini)
 
 ### Configuration
 
@@ -213,7 +212,6 @@ python -m smbreplay config show
 python -m smbreplay config set server_ip 192.168.1.100
 python -m smbreplay config set domain your-domain.local
 python -m smbreplay config set username your-username
-python -m smbreplay config set password your-password
 python -m smbreplay config set tree_name your-share-name
 
 # Set case management
@@ -231,7 +229,6 @@ The following settings are available for replay configuration:
 - `server_ip`: Target SMB server IP address
 - `domain`: SMB domain name
 - `username`: SMB username
-- `password`: SMB password (stored securely in user config)
 - `tree_name`: SMB share/tree name
 - `max_wait`: Maximum wait time for operations (default: 5.0 seconds)
 
@@ -283,7 +280,6 @@ The system creates and manages a configurable traces directory structure:
 └── case_002/
     └── ...
 ```
-```
 
 ## Key Features
 
@@ -331,7 +327,6 @@ python -m smbreplay session 0x7602000009fbdaa3 --case 2010101010 --trace tcpdump
 python -m smbreplay config set server_ip 192.168.1.100
 python -m smbreplay config set domain your-domain.local
 python -m smbreplay config set username your-username
-python -m smbreplay config set password your-password
 python -m smbreplay config set tree_name your-share-name
 
 # Replay a session
@@ -375,7 +370,6 @@ If packages fail to import:
 
 1. Activate the virtual environment: `source venv/bin/activate`
 2. Reinstall requirements: `pip install -r requirements.txt`
-3. For impacket issues, try: `pip install impacket --no-deps`
 
 ### Tshark Issues
 
@@ -420,13 +414,12 @@ If the Python package fails to import:
 │       ├── utils.py                    # Package utilities
 │       └── test_conversion.py          # Package tests
 ├── utils/                              # Development/debug utilities
-│   ├── check_tree_connect_frames.py   # Debug script for tree connects
-│   ├── compare_pcap_parquet.py         # PCAP to parquet comparison tool
-│   ├── debug_tree_connects.py          # Tree connect debugging script
-│   ├── system_status.py                # System status reporting
-│   ├── test_mock_connectivity.py       # Mock connectivity testing
-│   ├── test_simple_connectivity.py     # Simple connectivity testing
-│   └── test_smb_connectivity.py        # Full SMB connectivity testing
+│   ├── analysis/                       # Analysis scripts
+│   ├── benchmarks/                     # Benchmark scripts
+│   ├── cleanup/                        # Cleanup scripts
+│   ├── docs/                           # Documentation
+│   ├── pcap/                           # PCAP utilities
+│   └── tests/                          # Test scripts
 ├── requirements.txt                    # Python dependencies
 ├── activate_env.sh                     # Environment activation script
 ├── test_environment.py                 # Environment verification script
@@ -444,6 +437,7 @@ If the Python package fails to import:
 - **Replay Capability**: Core SMB2 commands implemented (Tree Connect, Create, Close, Read, Write)
 - **Error Handling**: Comprehensive PCAP corruption handling with `pcapfix` integration
 - **Environment**: Configurable via `TRACES_FOLDER` environment variable
+- **Type Checking**: All code is type-checked with mypy (see mypy.ini)
 
 ## Recent Updates
 
@@ -451,7 +445,7 @@ If the Python package fails to import:
 - **Session ID Resolution**: Bare session IDs now work without requiring full filename prefix/suffix
 - **Debug Verbosity**: Added `-v`, `-vv`, `-vvv` flags for different levels of debug output during ingestion and processing
 - **Brief Output Format**: Added `--brief` option for compact session display suitable for large files
-- **Protocol Constants**: Complete SMB2 protocol constants and field mappings for impacket integration
+- **Protocol Constants**: Complete SMB2 protocol constants and field mappings for smbprotocol integration
 - **Replay Server Configuration**: Full configuration management for replay server settings with secure credential storage
 - **Error Handling**: Improved error handling with proper identification of non-SMB2 traces (e.g., LDAP traffic)
 - **Case Management**: Enhanced case and trace file management with proper path resolution
