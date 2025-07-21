@@ -196,6 +196,37 @@ class SMB2Replayer:
         """Handle Query Info operation (stub)."""
         logger.debug(f"Query Info: Not implemented. op={op}")
 
+    def handle_negotiate(self, op: Dict[str, Any]):
+        logger.info("Negotiate: Using already established connection for replay. Parameters: %s", op)
+        # Optionally validate parameters or log them
+
+    def handle_session_setup(self, op: Dict[str, Any]):
+        logger.info("Session Setup: Using already established session for replay. Parameters: %s", op)
+        # Optionally validate parameters or log them
+
+    def handle_logoff(self, op: Dict[str, Any]):
+        logger.info("Logoff: Skipping, as session teardown is handled at the end of replay. Parameters: %s", op)
+        # Optionally disconnect session if this is the last operation
+
+    def handle_tree_disconnect(self, op: Dict[str, Any]):
+        logger.info("Tree Disconnect: Skipping, as tree teardown is handled at the end of replay. Parameters: %s", op)
+        # Optionally disconnect tree if this is the last operation
+
+    def handle_flush(self, op: Dict[str, Any]):
+        logger.info("Flush: Not implemented. Parameters: %s", op)
+
+    def handle_lock(self, op: Dict[str, Any]):
+        logger.info("Lock: Not implemented. Parameters: %s", op)
+
+    def handle_echo(self, op: Dict[str, Any]):
+        logger.info("Echo: Not implemented. Parameters: %s", op)
+
+    def handle_set_info(self, op: Dict[str, Any]):
+        logger.info("Set Info: Not implemented. Parameters: %s", op)
+
+    def handle_oplock_break(self, op: Dict[str, Any]):
+        logger.info("Oplock Break: Not implemented. Parameters: %s", op)
+
     def get_replay_config(self) -> Dict[str, Any]:
         """Get replay configuration."""
         return self.config.replay_config.copy()
@@ -992,16 +1023,25 @@ class SMB2Replayer:
     def command_handlers(self):
         """Get command handlers for SMB2 operations."""
         return {
+            0: self.handle_negotiate,
+            1: self.handle_session_setup,
+            2: self.handle_logoff,
             3: self.handle_tree_connect,
+            4: self.handle_tree_disconnect,
             5: self.handle_create,
             6: self.handle_close,
+            7: self.handle_flush,
             8: self.handle_read,
             9: self.handle_write,
+            10: self.handle_lock,
             11: self.handle_ioctl,
             12: self.handle_cancel,
+            13: self.handle_echo,
             14: self.handle_query_directory,
             15: self.handle_change_notify,
             16: self.handle_query_info,
+            17: self.handle_set_info,
+            18: self.handle_oplock_break,
         }
     
     def validate_operations(self, operations: List[Dict[str, Any]]) -> Dict[str, Any]:
