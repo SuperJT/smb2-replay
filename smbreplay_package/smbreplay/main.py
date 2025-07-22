@@ -928,7 +928,7 @@ Note: You must configure your target server before attempting replay operations.
         parser.add_argument("--trace", help="Trace file path (can be used with --case or as absolute/relative path)")
     
     # Ingest command
-    ingest_parser = subparsers.add_parser("ingest", help="Ingest PCAP file")
+    ingest_parser = subparsers.add_parser("ingest", help="Process PCAP file to extract SMB2 sessions")
     ingest_parser.add_argument("pcap_file", nargs="?", help="Path to PCAP file")
     ingest_parser.add_argument("--force", action="store_true", help="Force re-ingestion")
     ingest_parser.add_argument("--reassembly", action="store_true", help="Enable TCP reassembly")
@@ -939,7 +939,7 @@ Note: You must configure your target server before attempting replay operations.
     list_subparsers = list_parser.add_subparsers(dest="list_action", help="List actions")
     
     # List traces subcommand
-    list_traces_parser = list_subparsers.add_parser("traces", help="List available trace files")
+    list_traces_parser = list_subparsers.add_parser("traces", help="List available PCAP files in traces directory")
     add_common_args(list_traces_parser)
     
     # Session command
@@ -953,7 +953,7 @@ Note: You must configure your target server before attempting replay operations.
     add_common_args(session_parser)
     
     # Replay command
-    replay_parser = subparsers.add_parser("replay", help="Replay operations")
+    replay_parser = subparsers.add_parser("replay", help="Replay SMB2 operations to target server")
     replay_parser.add_argument("session_file", nargs="?", help="Session file name or session ID")
     replay_parser.add_argument("--session-id", help="Session ID to replay")
     replay_parser.add_argument("--file-filter", help="Filter by specific file")
@@ -996,17 +996,17 @@ Note: You must configure your target server before attempting replay operations.
     add_common_args(validate_parser)
     
     # Config command
-    config_parser = subparsers.add_parser("config", help="Configure system settings")
+    config_parser = subparsers.add_parser("config", help="Configure system settings (required before replay)")
     config_subparsers = config_parser.add_subparsers(dest="config_action", help="Configuration actions")
     
     # Config show
-    config_show_parser = config_subparsers.add_parser("show", help="Show current configuration")
+    config_show_parser = config_subparsers.add_parser("show", help="Show current configuration (check this first)")
     config_show_parser.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
     config_show_parser.add_argument("--quick", action="store_true", help="Skip heavy operations like tshark check")
     
     # Config set
     config_set_parser = config_subparsers.add_parser("set", help="Set configuration values")
-    config_set_parser.add_argument("key", help="Configuration key (traces_folder, capture_path, verbosity_level, session_id, case_id, trace_name, server_ip, domain, username, password, tree_name, max_wait)")
+    config_set_parser.add_argument("key", help="Configuration key (server_ip, domain, username, tree_name, case_id, traces_folder)")
     config_set_parser.add_argument("value", help="Configuration value")
     
     # Config get
@@ -1014,7 +1014,7 @@ Note: You must configure your target server before attempting replay operations.
     config_get_parser.add_argument("key", help="Configuration key")
     
     # Info command (simplified for system status)
-    info_parser = subparsers.add_parser("info", help="Show system information")
+    info_parser = subparsers.add_parser("info", help="Show system information and status")
     
     return parser
 
