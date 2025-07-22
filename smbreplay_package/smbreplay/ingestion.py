@@ -207,12 +207,12 @@ def run_ingestion(capture_path: Optional[str] = None, reassembly_enabled: bool =
             status_callback("Error - Local tshark is not available")
             return None
         
-        # Get packet count for informational purposes only
+        # Get packet count and set limits
         packet_count = get_packet_count(capture_path)
-        packet_limit = None  # Process full capture - no artificial limits
+        packet_limit = None
         
-        logger.info(f"Packet count: {packet_count}, Processing full capture (no packet limit)")
-        status_callback(f"Packet count: {packet_count}, Processing full capture (no packet limit)")
+        logger.info(f"Packet limit set to: {packet_limit if packet_limit is not None else 'None (full capture)'}")
+        status_callback(f"Packet limit set to: {packet_limit if packet_limit is not None else 'None (full capture)'}")
         
         # Extract case number from path
         parts = capture_path.split(os.sep)
