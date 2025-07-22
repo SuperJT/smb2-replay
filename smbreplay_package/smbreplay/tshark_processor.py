@@ -300,8 +300,8 @@ def _optimize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         df['ip.dst'] = df['ip.dst'].astype('string')
     if 'smb2.msg_id' in df.columns:
         df['smb2.msg_id'] = df['smb2.msg_id'].map(lambda x: x[0] if isinstance(x, list) and x else x)
-        # Use Int64 instead of UInt64 to handle NaN values properly
-        df['smb2.msg_id'] = pd.to_numeric(df['smb2.msg_id'], errors='coerce').astype('Int64')
+        # Keep as string for now to avoid casting issues
+        df['smb2.msg_id'] = df['smb2.msg_id'].astype('string')
     
     return df
 
