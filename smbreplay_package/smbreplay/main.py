@@ -912,6 +912,12 @@ Configuration:
 
 Note: You must configure your target server before attempting replay operations.
       Use 'smbreplay config show' to verify your configuration.
+
+Data Storage:
+  Processed session data is stored in .tracer directories:
+  ~/cases/<case_id>/.tracer/<pcap_name>/sessions/
+  - smb2_session_0x*.parquet: Session data files
+  - session_metadata.json: Session metadata
         """
     )
     

@@ -225,6 +225,16 @@ smbreplay config set traces_folder ~/cases
 3. **Session IDs**: Copy session IDs exactly as shown in the session list
 4. **Brief Output**: Use `--brief` flag for large sessions to get a compact command summary
 5. **Verbosity**: Add `-v`, `-vv`, or `-vvv` before commands for debug output
+6. **Metadata Storage**: Processed session data is stored in `.tracer` directories within each case folder:
+   ```
+   ~/cases/2010101010/
+   ├── .tracer/
+   │   └── capture.pcap/
+   │       └── sessions/
+   │           ├── smb2_session_0x*.parquet    # Session data files
+   │           └── session_metadata.json       # Session metadata
+   └── capture.pcap                            # Original PCAP file
+   ```
 
 ### Troubleshooting
 
