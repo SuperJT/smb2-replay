@@ -284,6 +284,14 @@ class SMB2Replayer:
                 and resp_op.get('smb2.msg_id') == msg_id
             ):
                 create_action = resp_op.get('smb2.create.action', '')
+                nt_status = resp_op.get('smb2.nt_status', '0x00000000')
+                
+                # Handle empty create_action (usually means the operation failed)
+                if not create_action or create_action == '':
+                    logger.debug(f"Empty create.action for msg_id {msg_id} in response frame {resp_op.get('Frame')} with status {nt_status}")
+                    # For failed operations, we can't determine the type/action, so return defaults
+                    return 'file', 'open'
+                
                 if create_action == 'FILE_CREATED':
                     return 'file', 'create'
                 elif create_action == 'FILE_OPENED':
