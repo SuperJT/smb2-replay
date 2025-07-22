@@ -17,8 +17,8 @@ def handle_cancel(replayer, op: Dict[str, Any], **kwargs):
         **kwargs: Additional context (session, etc.)
     """
     try:
-        # Get the session from kwargs or use the current session
-        session = kwargs.get('session', replayer.session)
+        # Get the session from kwargs
+        session = kwargs.get('session')
         
         if not session:
             replayer.logger.warning("Cancel: No session available for cancel operation")
