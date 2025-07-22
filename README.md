@@ -82,372 +82,153 @@ Configuration is managed through the Python package's user-specific configuratio
    source activate_env.sh
    ```
 
-## Usage
+## Usage Guide
 
-### Python Package Interface
+### Step-by-Step Workflow
 
-The system is implemented as a well-structured Python package for programmatic use and automation.
+The SMB2 Replay tool follows a specific workflow to capture, analyze, and replay SMB2 network traffic. Follow these steps in order:
 
-#### Package Structure
+#### 1. **Check Your Configuration**
+Before you can replay any PCAP files, you need to configure your target server settings:
 
-```
-smbreplay_package/
-└── smbreplay/
-    ├── __init__.py          # Package initialization
-    ├── __main__.py          # CLI entry point
-    ├── config.py            # Configuration management
-    ├── constants.py         # SMB2 constants and mappings
-    ├── tshark_processor.py  # PCAP processing with tshark
-    ├── ingestion.py         # Data ingestion and storage
-    ├── session_manager.py   # Session management and filtering
-    ├── replay.py            # SMB2 replay functionality
-    ├── main.py              # Main CLI interface
-    ├── utils.py             # Utility functions
-    └── test_conversion.py   # Package verification tests
+```bash
+# View your current configuration
+smbreplay config show
 ```
 
-#### Using the Python Package
+This shows all your configuration options including server IP, domain, username, and share name. **You cannot replay a PCAP if you haven't identified which server to replay to in the configuration.**
 
-1. **Import the package**:
-   ```python
-   from smbreplay import SMBReplaySystem, Config, SessionManager, ReplayEngine
-   ```
+#### 2. **List Available Traces**
+Enumerate the available PCAP files in your traces directory:
 
-2. **Basic usage example**:
-   ```python
-   # Initialize the system
-   config = Config()
-   config.set_traces_folder("~/cases")
-   config.set_server_config(
-       server_ip="10.216.29.241",
-       domain="nas-deep.local",
-       username="jtownsen",
-       tree_name="2pm"
-   )
-   
-   # Create system instance
-   system = SMBReplaySystem(config)
-   
-   # Process a PCAP file
-   case_number = "001"
-   pcap_path = "/path/to/your/capture.pcap"
-   system.ingest_pcap(case_number, pcap_path)
-   
-   # List available sessions
-   sessions = system.list_sessions(case_number)
-   print(f"Found {len(sessions)} sessions")
-   
-   # Load a specific session
-   session_data = system.load_session(case_number, sessions[0])
-   
-   # Replay operations
-   replay_engine = ReplayEngine(config)
-   replay_engine.replay_session(session_data)
-   ```
+```bash
+# List traces in a specific case directory
+smbreplay list traces --case 2010101010
+```
 
-3. **Command-line interface**:
-   ```bash
-   # Navigate to package directory
-   cd smbreplay_package
-   
-   # Show help
-   python -m smbreplay --help
-   
-   # Show system info
-   python -m smbreplay info
-   
-   # Configure the system
-   python -m smbreplay config set server_ip 192.168.1.100
-   python -m smbreplay config set case_id 2010101010
-   
-   # Process a PCAP file with debug output
-   python -m smbreplay -vv ingest --case 2010101010 --trace tcpdump_properly_fixed.pcap
-   
-   # List available sessions
-   python -m smbreplay list sessions --case 2010101010
-   
-   # Display session information
-   python -m smbreplay session 0x7602000009fbdaa3 --case 2010101010 --trace tcpdump_properly_fixed.pcap
-   
-   # Display session with brief output
-   python -m smbreplay session 0x7602000009fbdaa3 --case 2010101010 --trace tcpdump_properly_fixed.pcap --brief
-   
-   # Replay a session
-   python -m smbreplay replay 0x7602000009fbdaa3 --case 2010101010 --trace tcpdump_properly_fixed.pcap
-   ```
+This shows all PCAP files available in your traces directory (configured via the `TRACES_FOLDER` environment variable or `~/cases` by default).
 
-#### Package Features
+#### 3. **Ingest a PCAP File**
+Process a PCAP file to extract SMB2 sessions:
 
-- **Modular Design**: Separate modules for different functionalities
-- **User-Specific Configuration**: Private configuration stored in user's home directory
-- **Session Management**: Load, filter, and analyze SMB2 sessions with session ID resolution
-- **Replay Engine**: Execute SMB2 operations on target server using smbprotocol
-- **CLI Interface**: Command-line tools for automation with debug verbosity support
-- **Error Handling**: Comprehensive error handling and logging
-- **Testing**: Built-in tests for package verification
-- **Brief Output**: Compact session display format for large files
-- **Protocol Support**: Complete SMB2 protocol constants and field mappings
-- **Type Safety**: All code is type-checked with mypy (see mypy.ini)
+```bash
+# Ingest a PCAP file (use quotes if filename has spaces or is in different directory)
+smbreplay ingest --trace "My Capture File.pcap"
+smbreplay ingest --trace /path/to/different/directory/capture.pcap
+```
 
-### Configuration
+This extracts SMB2 sessions from the PCAP and stores them as Parquet files for analysis.
 
-#### User-Specific Configuration
+#### 4. **List SMB Sessions**
+Once ingested, view all SMB2 sessions found in the PCAP:
 
-The system uses a user-specific configuration file stored locally for security:
+```bash
+# List all SMB sessions in the ingested PCAP
+smbreplay session --list
+```
 
-- **Linux/macOS**: `~/.config/smbreplay/config.pkl`
-- **Windows**: `%LOCALAPPDATA%\smbreplay\config.pkl`
+This shows all session IDs that can be analyzed or replayed.
 
-This ensures that each user can maintain their own private credentials and settings without sharing them with other users.
+#### 5. **Analyze a Session**
+View the commands and operations in a specific session:
+
+```bash
+# Display detailed session information
+smbreplay session <session_id>
+
+# Display brief table of commands (recommended for large sessions)
+smbreplay session <session_id> --brief
+```
+
+Replace `<session_id>` with the actual session ID from step 4.
+
+#### 6. **Replay the Session**
+Execute the SMB2 operations on your target server:
+
+```bash
+# Replay the session to the configured target server
+smbreplay replay <session_id>
+```
+
+This will connect to your configured server and replay all the SMB2 operations from the session.
+
+### Complete Example
+
+Here's a complete example workflow:
+
+```bash
+# 1. Check configuration
+smbreplay config show
+
+# 2. List available traces
+smbreplay list traces --case 2010101010
+
+# 3. Ingest a PCAP file
+smbreplay ingest --trace "network_capture.pcap"
+
+# 4. List sessions
+smbreplay session --list
+
+# 5. Analyze a session (brief format)
+smbreplay session 0x7602000009fbdaa3 --brief
+
+# 6. Replay the session
+smbreplay replay 0x7602000009fbdaa3
+```
+
+### Configuration Management
+
+#### View Current Configuration
+```bash
+smbreplay config show
+```
+
+#### Set Server Configuration
+```bash
+# Set target server details
+smbreplay config set server_ip 192.168.1.100
+smbreplay config set domain your-domain.local
+smbreplay config set username your-username
+smbreplay config set tree_name your-share-name
+```
+
+#### Set Case Management
+```bash
+# Set case ID and traces folder
+smbreplay config set case_id 2010101010
+smbreplay config set traces_folder ~/cases
+```
+
+### Command Reference
 
 #### Configuration Commands
+- `smbreplay config show` - Display current configuration
+- `smbreplay config set <key> <value>` - Set configuration value
+- `smbreplay config get <key>` - Get specific configuration value
 
-Configure the system using the CLI:
+#### Trace Management
+- `smbreplay list traces --case <case_id>` - List available PCAP files
+- `smbreplay ingest --trace <file.pcap>` - Process PCAP file
 
-```bash
-# View current configuration
-python -m smbreplay config show
+#### Session Analysis
+- `smbreplay session --list` - List all SMB sessions
+- `smbreplay session <session_id>` - Display session details
+- `smbreplay session <session_id> --brief` - Display brief session summary
 
-# Set replay server configuration
-python -m smbreplay config set server_ip 192.168.1.100
-python -m smbreplay config set domain your-domain.local
-python -m smbreplay config set username your-username
-python -m smbreplay config set tree_name your-share-name
+#### Replay Operations
+- `smbreplay replay <session_id>` - Replay session to target server
 
-# Set case management
-python -m smbreplay config set case_id 2010101010
-python -m smbreplay config set traces_folder ~/cases
+### Important Notes
 
-# Get specific configuration value
-python -m smbreplay config get server_ip
-```
+1. **Configuration First**: Always check your configuration with `smbreplay config show` before attempting replay
+2. **File Paths**: Use quotes around filenames with spaces or special characters
+3. **Session IDs**: Copy session IDs exactly as shown in the session list
+4. **Brief Output**: Use `--brief` flag for large sessions to get a compact command summary
+5. **Verbosity**: Add `-v`, `-vv`, or `-vvv` before commands for debug output
 
-#### Replay Server Settings
+### Troubleshooting
 
-The following settings are available for replay configuration:
-
-- `server_ip`: Target SMB server IP address
-- `domain`: SMB domain name
-- `username`: SMB username
-- `tree_name`: SMB share/tree name
-- `max_wait`: Maximum wait time for operations (default: 5.0 seconds)
-
-#### Debug Verbosity
-
-Control debug output using verbosity flags:
-
-```bash
-# Basic operation (CRITICAL level only)
-python -m smbreplay ingest --case 001 --trace file.pcap
-
-# Error level output
-python -m smbreplay -v ingest --case 001 --trace file.pcap
-
-# Debug level output (recommended for troubleshooting)
-python -m smbreplay -vv ingest --case 001 --trace file.pcap
-
-# Maximum verbosity
-python -m smbreplay -vvv ingest --case 001 --trace file.pcap
-```
-
-Note: The verbosity flag (`-v`, `-vv`, `-vvv`) must come **before** the subcommand name.
-
-#### Environment Variables
-
-The project uses the following environment variables:
-
-- `TRACES_FOLDER`: Directory for trace data storage (defaults to `~/cases`)
-- `TSHARK_PATH`: Path to tshark executable (defaults to 'tshark')
-
-#### Configuration Files
-
-- `~/.config/smbreplay/config.pkl`: User-specific configuration (Linux/macOS)
-- `%LOCALAPPDATA%\smbreplay\config.pkl`: User-specific configuration (Windows)
-
-#### Traces Directory Structure
-
-The system creates and manages a configurable traces directory structure:
-
-```
-~/cases/                           # Default TRACES_FOLDER location
-├── 2010101010/                    # Case-specific directories
-│   ├── .tracer/                   # Processing metadata
-│   │   └── tcpdump_properly_fixed/
-│   │       └── sessions/          # Session parquet files
-│   │           ├── smb2_session_0x*.parquet
-│   │           └── session_metadata.json
-│   └── trace_files.pcap           # Original trace files
-└── case_002/
-    └── ...
-```
-
-## Key Features
-
-### SMB2 Protocol Support
-- Comprehensive SMB2 field capture (619 fields)
-- Session-based data organization by `smb2.sesid`
-- Command mapping for all SMB2 operations (0-18)
-- NT status code interpretation
-- Tree ID and File ID mapping
-
-### PCAP Processing
-- Automatic PCAP corruption detection and repair using `pcapfix`
-- Memory-efficient processing with streaming
-- Zstd compression for Parquet storage
-- Metadata extraction and validation
-
-### Replay Capabilities
-- **Implemented Commands**: Tree Connect (3), Create (5), Close (6), Read (8), Write (9)
-- **Pre-trace State Setup**: Automatic directory and file creation
-- **TID/FID Mapping**: Maintains relationships between original and replayed sessions
-- **Error Handling**: Comprehensive error handling and session management
-
-## Workflow Examples
-
-### Example 1: Analyze SMB2 Traffic from PCAP
-
-```bash
-# Using the CLI interface with debug output
-python -m smbreplay -vv ingest --case 2010101010 --trace tcpdump_properly_fixed.pcap
-
-# List available sessions
-python -m smbreplay list sessions --case 2010101010
-
-# Display session information
-python -m smbreplay session 0x7602000009fbdaa3 --case 2010101010 --trace tcpdump_properly_fixed.pcap
-
-# Display session with brief output for large files
-python -m smbreplay session 0x7602000009fbdaa3 --case 2010101010 --trace tcpdump_properly_fixed.pcap --brief
-```
-
-### Example 2: Configure and Replay File Operations
-
-```bash
-# Configure replay server settings
-python -m smbreplay config set server_ip 192.168.1.100
-python -m smbreplay config set domain your-domain.local
-python -m smbreplay config set username your-username
-python -m smbreplay config set tree_name your-share-name
-
-# Replay a session
-python -m smbreplay replay 0x7602000009fbdaa3 --case 2010101010 --trace tcpdump_properly_fixed.pcap
-```
-
-### Example 3: Batch Processing Multiple PCAPs
-
-```bash
-#!/bin/bash
-# Using the CLI interface with proper case management
-
-# Set up case directory
-python -m smbreplay config set case_id 2010101010
-
-for pcap in /evidence/*.pcap; do
-    pcap_name=$(basename "$pcap")
-    echo "Processing $pcap_name"
-    
-    # Process with debug output
-    python -m smbreplay -vv ingest --case 2010101010 --trace "$pcap_name"
-    
-    # List sessions for this trace
-    python -m smbreplay list sessions --case 2010101010 --trace "$pcap_name"
-done
-```
-
-## Troubleshooting
-
-### WSL2 Issues
-
-If you encounter file system issues with WSL2:
-
-1. Ensure virtual environment is created with `--copies` flag
-2. Check that all dependencies installed successfully
-3. Run `python test_environment.py` to verify setup
-
-### Missing Dependencies
-
-If packages fail to import:
-
-1. Activate the virtual environment: `source venv/bin/activate`
-2. Reinstall requirements: `pip install -r requirements.txt`
-
-### Tshark Issues
-
-If tshark commands fail:
-
-1. Verify tshark installation: `tshark -v`
-2. Check permissions for packet capture
-3. Set custom tshark path: `export TSHARK_PATH="/path/to/tshark"`
-
-### PCAP Corruption Issues
-
-If you encounter corrupted PCAP files:
-
-1. Install pcapfix: `sudo apt install -y pcapfix`
-2. Repair the PCAP: `pcapfix -d -t 276 -o output.pcap input.pcap`
-3. Update configuration to use the repaired file
-
-### Package Import Issues
-
-If the Python package fails to import:
-
-1. Ensure you're in the correct directory: `cd smbreplay_package`
-2. Check Python path: `python -c "import sys; print(sys.path)"`
-3. Run package tests: `python -m smbreplay.test_conversion`
-
-## Project Structure
-
-```
-~/bin/smbreplay/                        # Project root directory
-├── venv/                               # Virtual environment
-├── smbreplay_package/                  # Python package directory
-│   └── smbreplay/                      # Main Python package
-│       ├── __init__.py                 # Package initialization
-│       ├── __main__.py                 # CLI entry point
-│       ├── config.py                   # Configuration management
-│       ├── constants.py                # SMB2 constants
-│       ├── tshark_processor.py         # PCAP processing
-│       ├── ingestion.py                # Data ingestion
-│       ├── session_manager.py          # Session management
-│       ├── replay.py                   # Replay functionality
-│       ├── main.py                     # Main CLI interface
-│       ├── utils.py                    # Package utilities
-│       └── test_conversion.py          # Package tests
-├── utils/                              # Development/debug utilities
-│   ├── analysis/                       # Analysis scripts
-│   ├── benchmarks/                     # Benchmark scripts
-│   ├── cleanup/                        # Cleanup scripts
-│   ├── docs/                           # Documentation
-│   ├── pcap/                           # PCAP utilities
-│   └── tests/                          # Test scripts
-├── requirements.txt                    # Python dependencies
-├── activate_env.sh                     # Environment activation script
-├── test_environment.py                 # Environment verification script
-├── smbreplay.log                       # Application logs
-└── README.md                           # This file
-```
-
-## Development Notes
-
-- **Architecture**: Modular Python package for automation and analysis
-- **SMB2 Analysis**: Complete protocol analysis with 619 field capture capability
-- **Session Storage**: Organized by `smb2.sesid` in Parquet format with zstd compression
-- **Local Processing**: Uses local `tshark` instead of remote SSH connections
-- **Configuration**: Centralized configuration management
-- **Replay Capability**: Core SMB2 commands implemented (Tree Connect, Create, Close, Read, Write)
-- **Error Handling**: Comprehensive PCAP corruption handling with `pcapfix` integration
-- **Environment**: Configurable via `TRACES_FOLDER` environment variable
-- **Type Checking**: All code is type-checked with mypy (see mypy.ini)
-
-## Recent Updates
-
-- **User-Specific Configuration**: Configuration files now stored in user's home directory (`~/.config/smbreplay/` on Linux/macOS, `%LOCALAPPDATA%\smbreplay\` on Windows) for security and privacy
-- **Session ID Resolution**: Bare session IDs now work without requiring full filename prefix/suffix
-- **Debug Verbosity**: Added `-v`, `-vv`, `-vvv` flags for different levels of debug output during ingestion and processing
-- **Brief Output Format**: Added `--brief` option for compact session display suitable for large files
-- **Protocol Constants**: Complete SMB2 protocol constants and field mappings for smbprotocol integration
-- **Replay Server Configuration**: Full configuration management for replay server settings with secure credential storage
-- **Error Handling**: Improved error handling with proper identification of non-SMB2 traces (e.g., LDAP traffic)
-- **Case Management**: Enhanced case and trace file management with proper path resolution
-- **CLI Interface**: Improved command-line interface with better help and examples
-- **Package Architecture**: Modular design with separate components for different functionalities 
+- **"No configuration found"**: Run `smbreplay config show` and set required values
+- **"No sessions found"**: Ensure PCAP file was ingested successfully
+- **"Connection failed"**: Check server configuration and network connectivity
+- **"File not found"**: Verify PCAP file path and use quotes for spaces 

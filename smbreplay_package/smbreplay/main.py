@@ -871,35 +871,47 @@ def create_cli_parser() -> argparse.ArgumentParser:
         description="SMB2 Replay System - Capture, analyze, and replay SMB2 traffic",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+Step-by-Step Workflow:
+  1. Check configuration: smbreplay config show
+  2. List traces: smbreplay list traces --case 2010101010
+  3. Ingest PCAP: smbreplay ingest --trace "capture.pcap"
+  4. List sessions: smbreplay session --list
+  5. Analyze session: smbreplay session <session_id> --brief
+  6. Replay session: smbreplay replay <session_id>
+
 Examples:
-  # List available session IDs
-  smbreplay list sessions --case 002 --trace trace001.pcapng
+  # 1. Check your configuration (required before replay)
+  smbreplay config show
 
-  # List available trace files (searches in configured case folder if case_id is set)
-  smbreplay list traces
+  # 2. List available trace files in a case directory
+  smbreplay list traces --case 2010101010
 
-  # Configure case and then list traces
-  smbreplay config set case_id 002
-  smbreplay list traces
+  # 3. Ingest a PCAP file (use quotes for spaces or special paths)
+  smbreplay ingest --trace "My Capture File.pcap"
+  smbreplay ingest --trace /path/to/different/directory/capture.pcap
 
-  # Display session information using session ID
-  smbreplay session 0x00012c01c400000d --case 002 --trace trace001.pcapng
+  # 4. List all SMB sessions in the ingested PCAP
+  smbreplay session --list
 
-  # Using case+trace format
-  smbreplay session case002+trace001
+  # 5. Display session information (brief format recommended for large sessions)
+  smbreplay session 0x7602000009fbdaa3 --brief
 
-  # Using --case and --trace options
-  smbreplay session --case 002 --trace trace001.pcapng
+  # 6. Replay the session to your configured target server
+  smbreplay replay 0x7602000009fbdaa3
 
-  # Using --trace with absolute path
-  smbreplay session --trace /path/to/trace.pcapng
+Configuration:
+  # Set target server details
+  smbreplay config set server_ip 192.168.1.100
+  smbreplay config set domain your-domain.local
+  smbreplay config set username your-username
+  smbreplay config set tree_name your-share-name
 
-  # Using --trace with relative path (from current directory)
-  smbreplay session --trace ./traces/trace001.pcapng
+  # Set case management
+  smbreplay config set case_id 2010101010
+  smbreplay config set traces_folder ~/cases
 
-Note: The --trace option is used to specify the packet trace file (.pcap, .pcapng, .trc, .trc0) for analysis. 
-      It can be combined with --case for organized case management, or used standalone
-      with absolute or relative paths.
+Note: You must configure your target server before attempting replay operations.
+      Use 'smbreplay config show' to verify your configuration.
         """
     )
     
@@ -923,24 +935,21 @@ Note: The --trace option is used to specify the packet trace file (.pcap, .pcapn
     add_common_args(ingest_parser)
     
     # List sessions command
-    list_parser = subparsers.add_parser("list", help="List available sessions")
+    list_parser = subparsers.add_parser("list", help="List available traces")
     list_subparsers = list_parser.add_subparsers(dest="list_action", help="List actions")
-    
-    # List sessions subcommand
-    list_sessions_parser = list_subparsers.add_parser("sessions", help="List session IDs")
-    add_common_args(list_sessions_parser)
     
     # List traces subcommand
     list_traces_parser = list_subparsers.add_parser("traces", help="List available trace files")
     add_common_args(list_traces_parser)
     
     # Session command
-    session_parser = subparsers.add_parser("session", help="Display session information")
+    session_parser = subparsers.add_parser("session", help="Display session information or list available sessions")
     session_parser.add_argument("session_file", nargs="?", help="Session file name or session ID")
     session_parser.add_argument("--file-filter", help="Filter by specific file")
     session_parser.add_argument("--fields", nargs="+", help="Fields to include")
     session_parser.add_argument("--session-id", help="Session ID to display (alternative to session_file)")
     session_parser.add_argument("--brief", action="store_true", help="Show brief output (one line per frame)")
+    session_parser.add_argument("--list", action="store_true", help="List available sessions instead of displaying session info")
     add_common_args(session_parser)
     
     # Replay command
@@ -1274,25 +1283,10 @@ def _main_impl():
     
     elif args.command == "list":
         if not args.list_action:
-            safe_print("List commands: sessions, traces")
+            safe_print("List commands: traces")
             return
         
-        if args.list_action == "sessions":
-            pcap_path = resolve_pcap_path(args, system.config)
-            sessions = system.list_sessions(pcap_path)
-            if sessions:
-                safe_print(f"Available sessions ({len(sessions)}):")
-                for session in sessions:
-                    # Extract session ID from filename
-                    if session.startswith("smb2_session_") and session.endswith(".parquet"):
-                        session_id = session.replace("smb2_session_", "").replace(".parquet", "")
-                        safe_print(f"  - {session_id}")
-                    else:
-                        safe_print(f"  - {session}")
-            else:
-                safe_print("No sessions found")
-        
-        elif args.list_action == "traces":
+        if args.list_action == "traces":
             # Use case_id from command line arguments if provided
             case_id = args.case if hasattr(args, 'case') and args.case else None
             
@@ -1323,6 +1317,23 @@ def _main_impl():
                 safe_print(f"No trace files found in case {actual_case_id} folder: {search_location}")
     
     elif args.command == "session":
+        # Handle session listing
+        if args.list:
+            pcap_path = resolve_pcap_path(args, system.config)
+            sessions = system.list_sessions(pcap_path)
+            if sessions:
+                safe_print(f"Available sessions ({len(sessions)}):")
+                for session in sessions:
+                    # Extract session ID from filename
+                    if session.startswith("smb2_session_") and session.endswith(".parquet"):
+                        session_id = session.replace("smb2_session_", "").replace(".parquet", "")
+                        safe_print(f"  - {session_id}")
+                    else:
+                        safe_print(f"  - {session}")
+            else:
+                safe_print("No sessions found")
+            return
+
         # Handle session ID resolution
         session_file = args.session_file
         session_id = args.session_id
@@ -1335,6 +1346,7 @@ def _main_impl():
                 safe_print(f"Using configured session: {session_id}")
             else:
                 safe_print("Error: No session file or session ID provided")
+                safe_print("Use: smbreplay session <session_id> or smbreplay session --list to see available sessions")
                 sys.exit(1)
 
         # If session_file is provided and does not end with .parquet, treat as session ID and construct proper filename
