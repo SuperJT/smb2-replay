@@ -28,7 +28,7 @@ Handles SMB2 session replay using smbprotocol library.
 
 import time
 import subprocess
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional, Callable, Tuple
 from smbprotocol.connection import Connection
 from smbprotocol.session import Session
 from smbprotocol.tree import TreeConnect
@@ -269,7 +269,7 @@ class SMB2Replayer:
         """Get replay configuration."""
         return self.config.replay_config.copy()
     
-    def determine_create_type_and_action(self, operation: Dict[str, Any], all_operations: List[Dict[str, Any]]) -> (str, str):
+    def determine_create_type_and_action(self, operation: Dict[str, Any], all_operations: List[Dict[str, Any]]) -> Tuple[str, str]:
         """
         Determine if a create operation should create a file or directory, and if it is a new create or open.
         Returns a tuple: (type, action) where type is 'file' or 'directory', and action is 'create' or 'open'.
@@ -729,7 +729,8 @@ class SMB2Replayer:
 
         try:
             # --- Pre-trace setup: use a temporary connection/session/tree ---
-            status_callback("Setting up pre-trace state...")
+            if status_callback:
+                status_callback("Setting up pre-trace state...")
             logger.debug(f"Connecting to SMB server for pre-trace: {server_ip}")
             pre_connection = Connection(uuid.uuid4(), server_ip, 445)
             pre_connection.connect(timeout=max_wait)
@@ -741,7 +742,8 @@ class SMB2Replayer:
             # Pre-trace setup closes its own connection/session/tree
 
             # --- Main replay: use a fresh connection/session/tree ---
-            status_callback("Connecting to SMB server...")
+            if status_callback:
+                status_callback("Connecting to SMB server...")
             logger.debug(f"Connecting to SMB server: {server_ip}")
             connection = Connection(uuid.uuid4(), server_ip, 445)
             connection.connect(timeout=max_wait)
@@ -750,10 +752,12 @@ class SMB2Replayer:
             tree = TreeConnect(session, f"\\\\{server_ip}\\{default_tree_name}")
             tree.connect()
             logger.info("Successfully connected to SMB server and share")
-            status_callback(f"Connected to tree: {default_tree_name}")
+            if status_callback:
+                status_callback(f"Connected to tree: {default_tree_name}")
 
             # Send replay start ping to differentiate from pre-trace setup
-            status_callback("Sending replay start ping...")
+            if status_callback:
+                status_callback("Sending replay start ping...")
             self.send_replay_start_ping(server_ip)
 
             # Initialize mappings
@@ -764,7 +768,7 @@ class SMB2Replayer:
 
             # Summarize command types in selected_operations
             from collections import Counter
-            cmd_counter = Counter()
+            cmd_counter: Counter = Counter()
             for op in selected_operations:
                 try:
                     cmd_raw = op.get('smb2.cmd', '-1')
@@ -804,7 +808,8 @@ class SMB2Replayer:
                     is_response = op.get('smb2.flags.response') == 'True'
                     cmd = int(op.get('smb2.cmd', -1))
 
-                    status_callback(f"Processing operation {i}/{len(selected_operations)}: {op.get('Command', 'Unknown')}")
+                    if status_callback:
+                        status_callback(f"Processing operation {i}/{len(selected_operations)}: {op.get('Command', 'Unknown')}")
 
                     if not is_response:  # Request
                         handler = self.command_handlers.get(cmd)
@@ -874,9 +879,10 @@ class SMB2Replayer:
                 "response_validation": validation_results
             }
 
-            status_callback(f"Replay completed: {successful_ops} successful, {failed_ops} failed")
-            if validation_results['enabled']:
-                status_callback(f"Response validation: {validation_results['matching_responses']}/{validation_results['total_operations']} responses match ({validation_results['match_rate']:.1f}%)")
+            if status_callback:
+                status_callback(f"Replay completed: {successful_ops} successful, {failed_ops} failed")
+                if validation_results['enabled']:
+                    status_callback(f"Response validation: {validation_results['matching_responses']}/{validation_results['total_operations']} responses match ({validation_results['match_rate']:.1f}%)")
             logger.info(f"Replay completed: {results}")
 
             return results
@@ -884,7 +890,8 @@ class SMB2Replayer:
         except Exception as e:
             error_msg = f"Replay failed: {e}"
             logger.critical(error_msg)
-            status_callback(error_msg)
+            if status_callback:
+                status_callback(error_msg)
 
             return {
                 "success": False,
@@ -894,12 +901,11 @@ class SMB2Replayer:
                 "failed_operations": len(selected_operations)
             }
 
-            return results
-
         except Exception as e:
             error_msg = f"Replay failed: {e}"
             logger.critical(error_msg)
-            status_callback(error_msg)
+            if status_callback:
+                status_callback(error_msg)
 
             return {
                 "success": False,
@@ -911,28 +917,49 @@ class SMB2Replayer:
     @property
     def command_handlers(self):
         """Get command handlers for SMB2 operations."""
+        # Import all external handlers
         from smbreplay.handlers.create import handle_create
+        from smbreplay.handlers.read import handle_read
+        from smbreplay.handlers.write import handle_write
+        from smbreplay.handlers.close import handle_close
+        from smbreplay.handlers.lock import handle_lock
+        from smbreplay.handlers.set_info import handle_set_info
+        from smbreplay.handlers.tree_connect import handle_tree_connect
+        from smbreplay.handlers.tree_disconnect import handle_tree_disconnect
+        from smbreplay.handlers.session_setup import handle_session_setup
+        from smbreplay.handlers.logoff import handle_logoff
+        from smbreplay.handlers.negotiate import handle_negotiate
+        from smbreplay.handlers.echo import handle_echo
+        from smbreplay.handlers.flush import handle_flush
+        from smbreplay.handlers.ioctl import handle_ioctl
+        from smbreplay.handlers.query_directory import handle_query_directory
+        from smbreplay.handlers.query_info import handle_query_info
+        from smbreplay.handlers.change_notify import handle_change_notify
+        from smbreplay.handlers.cancel import handle_cancel
+        from smbreplay.handlers.oplock_break import handle_oplock_break
+        from smbreplay.handlers.lease_break import handle_lease_break
+        
         return {
-            0: self.handle_negotiate,
-            1: self.handle_session_setup,
-            2: self.handle_logoff,
-            3: self.handle_tree_connect,
-            4: self.handle_tree_disconnect,
+            0: lambda op: handle_negotiate(self, op),
+            1: lambda op: handle_session_setup(self, op),
+            2: lambda op: handle_logoff(self, op),
+            3: lambda session, op: handle_tree_connect(self, session, op),
+            4: lambda op: handle_tree_disconnect(self, op),
             5: lambda tree, op, all_operations=None: handle_create(self, tree, op, all_operations),
-            6: self.handle_close,
-            7: self.handle_flush,
-            8: self.handle_read,
-            9: self.handle_write,
-            10: self.handle_lock,
-            11: self.handle_ioctl,
-            12: self.handle_cancel,
-            13: self.handle_echo,
-            14: self.handle_query_directory,
-            15: self.handle_change_notify,
-            16: self.handle_query_info,
-            17: self.handle_set_info,
-            18: self.handle_oplock_break,
-            19: self.handle_lease_break,  # SMB2_LEASE_BREAK (SMB3)
+            6: lambda op: handle_close(self, op),
+            7: lambda op: handle_flush(self, op),
+            8: lambda op: handle_read(self, op),
+            9: lambda op: handle_write(self, op),
+            10: lambda op: handle_lock(self, op),
+            11: lambda op: handle_ioctl(self, op),
+            12: lambda op: handle_cancel(self, op),
+            13: lambda op: handle_echo(self, op),
+            14: lambda op: handle_query_directory(self, op),
+            15: lambda op: handle_change_notify(self, op),
+            16: lambda op: handle_query_info(self, op),
+            17: lambda op: handle_set_info(self, op),
+            18: lambda op: handle_oplock_break(self, op),
+            19: lambda op: handle_lease_break(self, op),  # SMB2_LEASE_BREAK (SMB3)
         }
     
     def validate_operations(self, operations: List[Dict[str, Any]]) -> Dict[str, Any]:
