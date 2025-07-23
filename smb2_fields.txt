@@ -36,7 +36,7 @@ F	Reserved	smb2.setinfo_reserved	FT_UINT16	smb2	BASE_DEC	0x0
 F	Max Ioctl Out Size	smb2.max_ioctl_out_size	FT_UINT32	smb2	BASE_DEC	0x0	
 F	Max Ioctl In Size	smb2.max_ioctl_in_size	FT_UINT32	smb2	BASE_DEC	0x0	
 F	Required Buffer Size	smb2.required_size	FT_UINT32	smb2	BASE_DEC	0x0	
-F	Reserved	smb2.header_reserved	FT_UINT32	smb2	BASE_HEX	0x0	
+F	Process Id	smb2.pid	FT_UINT32	smb2	BASE_HEX	0x0	
 F	Flags	smb2.flags	FT_UINT32	smb2	BASE_HEX	0x0	SMB2 flags
 F	Response	smb2.flags.response	FT_BOOLEAN	smb2	32	0x1	Whether this is an SMB2 Request or Response
 F	Async command	smb2.flags.async	FT_BOOLEAN	smb2	32	0x2	
@@ -130,7 +130,6 @@ F	SMB2_FILE_ATTRIBUTE_TAG_INFO	smb2.file_attribute_tag_info	FT_NONE	smb2		0x0
 F	SMB2_FILE_DISPOSITION_INFO	smb2.file_disposition_info	FT_NONE	smb2		0x0	
 F	SMB2_FILE_FULL_EA_INFO	smb2.file_full_ea_info	FT_NONE	smb2		0x0	
 F	SMB2_FILE_RENAME_INFO	smb2.file_rename_info	FT_NONE	smb2		0x0	
-F	SMB2_FILE_LINK_INFO	smb2.file_link_info	FT_NONE	smb2		0x0	
 F	FileFsVolumeInformation	smb2.fs_volume_info	FT_NONE	smb2		0x0	
 F	FileFsSizeInformation	smb2.fs_size_info	FT_NONE	smb2		0x0	
 F	FileFsDeviceInformation	smb2.fs_device_info	FT_NONE	smb2		0x0	
@@ -138,15 +137,6 @@ F	FileFsAttributeInformation	smb2.fs_attribute_info	FT_NONE	smb2		0x0
 F	FileFsControlInformation	smb2.fs_control_info	FT_NONE	smb2		0x0	
 F	FileFsFullSizeInformation	smb2.fs_full_size_info	FT_NONE	smb2		0x0	
 F	FileFsObjectIdInformation	smb2.fs_objectid_info	FT_NONE	smb2		0x0	
-F	FileFsPOSIXInformation	smb2.fs_posix_info	FT_NONE	smb2		0x0	
-F	Optimal Transfer Size	smb2.fs_posix_optimal_transfer_size	FT_UINT32	smb2	BASE_DEC	0x0	
-F	Block Size	smb2.fs_posix_block_size	FT_UINT32	smb2	BASE_DEC	0x0	
-F	Total Blocks	smb2.fs_posix_total_blocks	FT_UINT64	smb2	BASE_DEC	0x0	
-F	Blocks Available	smb2.fs_posix_blocks_available	FT_UINT64	smb2	BASE_DEC	0x0	
-F	User Blocks Available	smb2.fs_posix_user_blocks_available	FT_UINT64	smb2	BASE_DEC	0x0	
-F	Total File Nodes	smb2.fs_posix_total_file_nodes	FT_UINT64	smb2	BASE_DEC	0x0	
-F	Free File Nodes	smb2.fs_posix_free_file_nodes	FT_UINT64	smb2	BASE_DEC	0x0	
-F	Fs-Identifier	smb2.fs_posix_fs_identifier	FT_UINT64	smb2	BASE_HEX	0x0	
 F	SMB2_SEC_INFO_00	smb2.sec_info_00	FT_NONE	smb2		0x0	
 F	SMB2_QUOTA_INFO	smb2.quota_info	FT_NONE	smb2		0x0	
 F	SMB2_QUERY_QUOTA_INFO	smb2.query_quota_info	FT_NONE	smb2		0x0	
@@ -184,9 +174,7 @@ F	Next Offset	smb2.next_offset	FT_UINT32	smb2	BASE_DEC	0x0	Offset to next buffer
 F	Type	smb2.negotiate_context.type	FT_UINT16	smb2	BASE_HEX	0x0	
 F	DataLength	smb2.negotiate_context.data_length	FT_UINT16	smb2	BASE_DEC	0x0	
 F	NegotiateContextOffset	smb2.negotiate_context.offset	FT_UINT32	smb2	BASE_HEX	0x0	
-F	Reserved2	smb2.negotiate_context.reserved2	FT_UINT32	smb2	BASE_HEX	0x0	
 F	NegotiateContextCount	smb2.negotiate_context.count	FT_UINT16	smb2	BASE_DEC	0x0	
-F	Reserved	smb2.negotiate_context.reserved	FT_UINT16	smb2	BASE_DEC	0x0	
 F	HashAlgorithmCount	smb2.negotiate_context.hash_alg_count	FT_UINT16	smb2	BASE_DEC	0x0	
 F	HashAlgorithm	smb2.negotiate_context.hash_algorithm	FT_UINT16	smb2	BASE_HEX	0x0	
 F	SaltLength	smb2.negotiate_context.salt_length	FT_UINT16	smb2	BASE_DEC	0x0	
@@ -196,7 +184,6 @@ F	SigningAlgorithmId	smb2.negotiate_context.signing_id	FT_UINT16	smb2	BASE_HEX	0
 F	CipherCount	smb2.negotiate_context.cipher_count	FT_UINT16	smb2	BASE_DEC	0x0	
 F	CipherId	smb2.negotiate_context.cipher_id	FT_UINT16	smb2	BASE_HEX	0x0	
 F	POSIX Reserved	smb2.negotiate_context.posix_reserved	FT_BYTES	smb2		0x0	
-F	Device	smb2.dev	FT_UINT32	smb2	BASE_HEX	0x0	
 F	Inode	smb2.inode	FT_UINT64	smb2	BASE_HEX	0x0	
 F	CompressionAlgorithmCount	smb2.negotiate_context.comp_alg_count	FT_UINT16	smb2	BASE_DEC	0x0	
 F	CompressionAlgorithmId	smb2.negotiate_context.comp_alg_id	FT_UINT16	smb2	BASE_HEX	0x0	
@@ -285,7 +272,7 @@ F	Socket IPv6	smb2.windows.sockaddr.in6.addr	FT_IPv6	smb2		0x0	The IPv6 address
 F	IPv6 Scope ID	smb2.windows.sockaddr.in6.scope_id	FT_UINT32	smb2	BASE_DEC	0x0	The socket IPv6 scope id
 F	Next Offset	smb2.ioctl.network_interfaces.next_offset	FT_UINT32	smb2	BASE_HEX	0x0	Offset to next entry in chain or 0
 F	Interface Index	smb2.ioctl.network_interfaces.index	FT_UINT32	smb2	BASE_DEC	0x0	The index of the interface
-F	Reserved	smb2.ioctl.network_interfaces.reserved	FT_UINT32	smb2	BASE_DEC	0x0	Was RSS Queue Count
+F	RSS Queue Count	smb2.ioctl.network_interfaces.rss_queue_count	FT_UINT32	smb2	BASE_DEC	0x0	The RSS queue count
 F	Interface Cababilities	smb2.ioctl.network_interfaces.capabilities	FT_UINT32	smb2	BASE_HEX	0x0	The capabilities of the network interface
 F	RSS	smb2.ioctl.network_interfaces.capabilities.rss	FT_BOOLEAN	smb2	32	0x1	If the host supports RSS
 F	RDMA	smb2.ioctl.network_interfaces.capabilities.rdma	FT_BOOLEAN	smb2	32	0x2	If the host supports RDMA
@@ -331,8 +318,8 @@ F	Lock Count	smb2.lock_count	FT_UINT16	smb2	BASE_DEC	0x0
 F	Lock Sequence Number	smb2.lock_sequence_number	FT_UINT32	smb2	BASE_DEC	0xf	
 F	Lock Sequence Index	smb2.lock_sequence_index	FT_UINT32	smb2	BASE_DEC	0xfffffff0	
 F	Capabilities	smb2.capabilities	FT_UINT32	smb2	BASE_HEX	0x0	
-F	Authenticated in Frame	smb2.auth_frame	FT_FRAMENUM	smb2		0x0	Which frame this user was authenticated in
-F	Connected in Frame	smb2.tcon_frame	FT_FRAMENUM	smb2		0x0	Which frame this share was connected in
+F	Authenticated in Frame	smb2.auth_frame	FT_UINT32	smb2	BASE_DEC	0x0	Which frame this user was authenticated in
+F	Connected in Frame	smb2.tcon_frame	FT_UINT32	smb2	BASE_DEC	0x0	Which frame this share was connected in
 F	Tag	smb2.tag	FT_STRING	smb2		0x0	Tag of chain entry
 F	Account	smb2.acct	FT_STRING	smb2		0x0	Account Name
 F	Domain	smb2.domain	FT_STRING	smb2		0x0	Domain Name
@@ -357,7 +344,6 @@ F	MULTI CHANNEL	smb2.capabilities.multi_channel	FT_BOOLEAN	smb2	32	0x8	If the ho
 F	PERSISTENT HANDLES	smb2.capabilities.persistent_handles	FT_BOOLEAN	smb2	32	0x10	If the host supports PERSISTENT HANDLES
 F	DIRECTORY LEASING	smb2.capabilities.directory_leasing	FT_BOOLEAN	smb2	32	0x20	If the host supports DIRECTORY LEASING
 F	ENCRYPTION	smb2.capabilities.encryption	FT_BOOLEAN	smb2	32	0x40	If the host supports ENCRYPTION
-F	NOTIFICATIONS	smb2.capabilities.notifications	FT_BOOLEAN	smb2	32	0x80	If the host supports receiving notifications from server
 F	Max Transaction Size	smb2.max_trans_size	FT_UINT32	smb2	BASE_DEC	0x0	
 F	Max Read Size	smb2.max_read_size	FT_UINT32	smb2	BASE_DEC	0x0	
 F	Max Write Size	smb2.max_write_size	FT_UINT32	smb2	BASE_DEC	0x0	
@@ -385,7 +371,7 @@ F	DFS	smb2.share_caps.dfs	FT_BOOLEAN	smb2	32	0x8	The specified share is present 
 F	CONTINUOUS AVAILABILITY	smb2.share_caps.continuous_availability	FT_BOOLEAN	smb2	32	0x10	The specified share is continuously available
 F	SCALEOUT	smb2.share_caps.scaleout	FT_BOOLEAN	smb2	32	0x20	The specified share is a scaleout share
 F	CLUSTER	smb2.share_caps.cluster	FT_BOOLEAN	smb2	32	0x40	The specified share is a cluster share
-F	ASYMMETRIC	smb2.share_caps.asymmetric	FT_BOOLEAN	smb2	32	0x80	The specified share allows dynamic changes in ownership of the share
+F	ASSYMETRIC	smb2.share_caps.assymetric	FT_BOOLEAN	smb2	32	0x80	The specified share allows dynamic changes in ownership of the share
 F	REDIRECT_TO_OWNER	smb2.share_caps.redirect_to_owner	FT_BOOLEAN	smb2	32	0x100	The specified share supports synchronous share level redirection
 F	Flags	smb2.ioctl.flags	FT_UINT32	smb2	BASE_HEX	0x0	
 F	Min Count	smb2.min_count	FT_UINT32	smb2	BASE_DEC	0x0	
@@ -449,7 +435,7 @@ F	Struct Size	smb2.app_instance.struct_size	FT_UINT16	smb2	BASE_DEC	0x0
 F	Reserved	smb2.app_instance.reserved	FT_UINT16	smb2	BASE_HEX	0x0	
 F	Application Guid	smb2.app_instance.app_guid	FT_GUID	smb2		0x0	
 F	Version	smb2.svhdx_open_device_context.version	FT_UINT32	smb2	BASE_DEC	0x0	
-F	HasInitiatorId	smb2.svhdx_open_device_context.initiator_has_id	FT_BOOLEAN	smb2	0	0x0	Whether the host has an initiator
+F	HasInitiatorId	smb2.svhdx_open_device_context.initiator_has_id	FT_BOOLEAN	smb2	8	0x0	Whether the host has an initiator
 F	Reserved	smb2.svhdx_open_device_context.reserved	FT_BYTES	smb2		0x0	
 F	InitiatorId	smb2.svhdx_open_device_context.initiator_id	FT_GUID	smb2		0x0	
 F	Flags	smb2.svhdx_open_device_context.flags	FT_UINT32	smb2	BASE_HEX	0x0	
@@ -457,7 +443,7 @@ F	OriginatorFlags	smb2.svhdx_open_device_context.originator_flags	FT_UINT32	smb2
 F	OpenRequestId	smb2.svhxd_open_device_context.open_request_id	FT_UINT64	smb2	BASE_HEX	0x0	
 F	HostNameLength	smb2.svhxd_open_device_context.initiator_host_name_len	FT_UINT16	smb2	BASE_DEC	0x0	
 F	HostName	smb2.svhdx_open_device_context.host_name	FT_STRING	smb2		0x0	
-F	VirtualDiskPropertiesInitialized	smb2.svhdx_open_device_context.virtual_disk_properties_initialized	FT_BOOLEAN	smb2	0	0x0	Whether VirtualSectorSize, PhysicalSectorSize, and VirtualSize fields are filled
+F	VirtualDiskPropertiesInitialized	smb2.svhdx_open_device_context.virtual_disk_properties_initialized	FT_BOOLEAN	smb2	32	0x0	Whether VirtualSectorSize, PhysicalSectorSize, and VirtualSize fields are filled
 F	ServerServiceVersion	smb2.svhdx_open_device_context.server_service_version	FT_UINT32	smb2	BASE_DEC	0x0	The current version of the protocol running on the server
 F	VirtualSectorSize	smb2.svhdx_open_device_context.virtual_sector_size	FT_UINT32	smb2	BASE_DEC	0x0	The virtual sector size of the virtual disk
 F	PhysicalSectorSize	smb2.svhdx_open_device_context.physical_sector_size	FT_UINT32	smb2	BASE_DEC	0x0	The physical sector size of the virtual disk
@@ -557,32 +543,8 @@ F	Not Content Indexed	smb2.file_attribute.not_content_indexed	FT_BOOLEAN	smb2	32
 F	Encrypted	smb2.file_attribute.encrypted	FT_BOOLEAN	smb2	32	0x4000	Is this file encrypted?
 F	Integrity Stream	smb2.file_attribute.integrity_stream	FT_BOOLEAN	smb2	32	0x8000	Is this file configured with integrity support?
 F	No Scrub Data	smb2.file_attribute.no_scrub_data	FT_BOOLEAN	smb2	32	0x20000	Is this file configured to be excluded from the data integrity scan?
-F	Enable Integrity	smb2.fsctl.infoex.enable_integrity	FT_UINT8	smb2	BASE_HEX	0x0	
-F	Integrity State	smb2.fsctl.infoex.keep_integrity_state	FT_UINT8	smb2	BASE_HEX	0x0	
-F	Reserved	smb2.fsctl.infoex.reserved	FT_UINT16	smb2	BASE_HEX	0x0	
-F	Flags	smb2.fsctl.infoex.flags	FT_UINT32	smb2	BASE_HEX	0x0	
-F	Version	smb2.fsctl.infoex.version	FT_UINT8	smb2	BASE_DEC	0x0	
-F	Reserved	smb2.fsctl.infoex.reserved2	FT_UINT56	smb2	BASE_HEX	0x0	
-F	Flags	smb2.query_info.flags	FT_UINT32	smb2	BASE_HEX	0x0	
-F	SL Restart Scan	smb2.query_info.flags.restart_scan	FT_BOOLEAN	smb2	32	0x1	Restart the scan for EAs from the beginning
-F	SL Return Single Entry	smb2.query_info.flags.return_single_entry	FT_BOOLEAN	smb2	32	0x2	Return a single EA entry in the response buffer.
-F	SL Index Specified	smb2.query_info.flags.index_specified	FT_BOOLEAN	smb2	32	0x4	The caller has specified an EA index.
-F	Notification Type	smb2.notification.type	FT_UINT32	smb2	BASE_HEX	0x0	
-F	Operation	smb2.refs.snapshot.mgmt.op	FT_UINT32	smb2	BASE_HEX	0x0	
-F	Name Length	smb2.refs.snapshot.mgmt.namelen	FT_UINT16	smb2	BASE_DEC	0x0	
-F	Input Buffer Length	smb2.refs.snapshot.mgmt.input_buffer_len	FT_UINT16	smb2	BASE_DEC	0x0	
-F	Reserved	smb2.refs.snapshot.mgmt.reserved	FT_BYTES	smb2		0x0	
-F	Name	smb2.refs.snapshot.mgmt.name	FT_STRING	smb2		0x0	
-F	Starting VCN	smb2.refs.snapshot.query.delta_buffer.startvcn	FT_UINT64	smb2	BASE_DEC	0x0	
-F	Flags	smb2.refs.snapshot.query.delta_buffer.flags	FT_UINT32	smb2	BASE_DEC	0x0	
-F	Reserved	smb2.refs.snapshot.query.delta_buffer.reserved	FT_UINT32	smb2	BASE_DEC	0x0	
-F	Reserved2	smb2.flush.reserved2	FT_BYTES	smb2		0x0	
 F	Invalid length	smb2.invalid_length	FT_NONE	smb2		0x0	
 F	Bad response	smb2.bad_response	FT_NONE	smb2		0x0	
-F	Negotiate Protocol request NegotiateContextCount is nonzero without SMB 3.11 support	smb2.bad_negprot_negotiate_context_count	FT_NONE	smb2		0x0	
-F	Negotiate Protocol request NegotiateContextOffset is nonzero without SMB 3.11 support	smb2.bad_negprot_negotiate_context_offset	FT_NONE	smb2		0x0	
-F	Negotiate Protocol response Reserved is nonzero	smb2.bad_negprot_reserved	FT_NONE	smb2		0x0	
-F	Negotiate Protocol response Reserved2 is nonzero	smb2.bad_negprot_reserved2	FT_NONE	smb2		0x0	
 F	Input buffer offset isn't past the fixed data in the message	smb2.invalid_getinfo_offset	FT_NONE	smb2		0x0	
 F	Input buffer length goes past the end of the message	smb2.invalid_getinfo_size	FT_NONE	smb2		0x0	
 F	Input buffer length is empty for a quota request	smb2.empty_getinfo_buffer	FT_NONE	smb2		0x0	
