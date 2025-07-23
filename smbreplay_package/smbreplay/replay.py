@@ -781,7 +781,8 @@ class SMB2Replayer:
                 try:
                     cmd_raw = op.get('smb2.cmd', '-1')
                     cmd = int(cmd_raw) if str(cmd_raw).isdigit() else -1
-                    cmd_counter[cmd] += 1
+                    cmd_name = SMB2_OP_NAME_DESC.get(cmd, (f"UNKNOWN({cmd})",))[0]
+                    cmd_counter[f"{cmd_name} ({cmd})"] += 1
                 except Exception:
                     cmd_counter['error'] += 1
             logger.info(f"Main replay: processing {len(selected_operations)} operations. Command summary: {dict(cmd_counter)}")
@@ -799,12 +800,12 @@ class SMB2Replayer:
                 try:
                     cmd_raw = op.get('smb2.cmd', '-1')
                     cmd = int(cmd_raw) if str(cmd_raw).isdigit() else -1
+                    cmd_name = SMB2_OP_NAME_DESC.get(cmd, (f"UNKNOWN({cmd})",))[0]
 
                     if cmd not in supported_commands:
                         frame = op.get('Frame', 'N/A')
-                        command_name = SMB2_OP_NAME_DESC.get(cmd, ('Unknown',))[0]
                         issues.append(
-                            f"Operation {i+1} (Frame {frame}): Unsupported command {cmd} ({command_name})"
+                            f"Operation {i+1} (Frame {frame}): Unsupported command {cmd} ({cmd_name})"
                         )
                         continue
                 except Exception as e:

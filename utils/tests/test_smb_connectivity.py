@@ -39,7 +39,7 @@ def test_basic_connectivity(server_ip: str = "127.0.0.1", port: int = 445, timeo
         sock = socket.create_connection((server_ip, port), timeout=timeout)
         sock.close()
         print("✓ Port 445 is reachable")
-        return True
+        assert True
     except Exception as e:
         print(f"✗ Port 445 connection failed: {e}")
         raise

@@ -932,6 +932,7 @@ Data Storage:
     def add_common_args(parser):
         parser.add_argument("--case", help="Case number/name (uses traces folder)")
         parser.add_argument("--trace", help="Trace file path (can be used with --case or as absolute/relative path)")
+        parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (can be used multiple times)")
     
     # Ingest command
     ingest_parser = subparsers.add_parser("ingest", help="Process PCAP file to extract SMB2 sessions")
@@ -942,6 +943,7 @@ Data Storage:
     
     # List sessions command
     list_parser = subparsers.add_parser("list", help="List available traces")
+    list_parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (can be used multiple times)")
     list_subparsers = list_parser.add_subparsers(dest="list_action", help="List actions")
     
     # List traces subcommand
@@ -1003,6 +1005,7 @@ Data Storage:
     
     # Config command
     config_parser = subparsers.add_parser("config", help="Configure system settings (required before replay)")
+    config_parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (can be used multiple times)")
     config_subparsers = config_parser.add_subparsers(dest="config_action", help="Configuration actions")
     
     # Config show

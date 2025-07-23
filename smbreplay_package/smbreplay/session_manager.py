@@ -393,7 +393,22 @@ class SessionManager:
         frames['tree_name'] = frames['smb2.tid_normalized'].map(tree_mapping).fillna(frames['smb2.tid_normalized'])
         
         # Vectorized operation name mapping
-        frames['op_name'] = frames.get('smb2.cmd_desc', 'Unknown').fillna('Unknown')
+        normalize_cmd = FIELD_MAPPINGS['smb2.cmd']['normalize']
+        cmd_mapping = FIELD_MAPPINGS['smb2.cmd']['mapping']
+        
+        def get_op_name(x):
+            if x and pd.notna(x):
+                try:
+                    normalized = normalize_cmd(x)
+                    result = cmd_mapping.get(normalized, f"UNKNOWN({x})")
+                    logger.debug(f"Command translation: {x} -> {normalized} -> {result}")
+                    return result
+                except Exception as e:
+                    logger.debug(f"Error translating command {x}: {e}")
+                    return f"UNKNOWN({x})"
+            return "UNKNOWN"
+        
+        frames['op_name'] = frames['smb2.cmd'].apply(get_op_name)
         
         # Create base operations structure efficiently
         for idx in frames.index:
@@ -576,7 +591,18 @@ class SessionManager:
             status_display = row.get('smb2.nt_status_desc', 'N/A')
             cmd = row.get('smb2.cmd', '-1')
             is_response = row.get('smb2.flags.response', 'False') == 'True'
-            op_name = row.get('smb2.cmd_desc', 'Unknown')
+            
+            # Get command name using the same logic as vectorized method
+            try:
+                if cmd and pd.notna(cmd):
+                    # Use SMB2_OP_NAME_DESC directly for simplicity
+                    cmd_int = int(float(str(cmd).split(',')[0].strip().replace('{', '').replace('}', '').replace("'", '')))
+                    op_name = SMB2_OP_NAME_DESC.get(cmd_int, (f"UNKNOWN({cmd})", ""))[0]
+                else:
+                    op_name = "UNKNOWN"
+            except Exception as e:
+                logger.debug(f"Error translating command {cmd}: {e}")
+                op_name = f"UNKNOWN({cmd})" if cmd else "UNKNOWN"
             
             # Handle status description
             status_desc = status_display.split('(')[0].strip() if status_display != 'N/A' else 'Not applicable'
