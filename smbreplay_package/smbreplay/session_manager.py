@@ -469,27 +469,51 @@ class SessionManager:
         # Apply field mappings for normalization
         filtered_frames = self.session_frames.copy()
         
-        # Apply field mappings
+        # Apply field mappings with safe categorical handling
         for field in FIELD_MAPPINGS:
             if field in filtered_frames.columns:
                 mapping = FIELD_MAPPINGS[field]["mapping"]
                 normalize = FIELD_MAPPINGS[field]["normalize"]
                 
                 logger.debug(f"Normalizing field: {field}")
-                filtered_frames[field] = filtered_frames[field].apply(normalize)
+                
+                # Handle categorical columns safely
+                try:
+                    if filtered_frames[field].dtype.name == 'category':
+                        # Convert categorical to object, apply function, then back to categorical if needed
+                        temp_series = filtered_frames[field].astype('object').apply(normalize)
+                        # Only convert back to categorical if it makes sense (few unique values)
+                        if temp_series.nunique() / len(temp_series) < 0.5:
+                            filtered_frames[field] = temp_series.astype('category')
+                        else:
+                            filtered_frames[field] = temp_series
+                    else:
+                        filtered_frames[field] = filtered_frames[field].apply(normalize)
+                except Exception as e:
+                    logger.debug(f"Error normalizing field {field}: {e}")
+                    # Continue with other fields
+                    continue
                 
                 # Handle special fields
                 if field in ["smb2.create.action", "smb2.ioctl.function"]:
                     if not isinstance(mapping, dict):
                         logger.error(f"FIELD_MAPPINGS['{field}']['mapping'] must be a dict, got {type(mapping)}")
                         continue
-                    filtered_frames[f"{field}_desc"] = filtered_frames[field].apply(
-                        lambda x: mapping.get(str(x), "") if pd.notna(x) and str(x).strip() != "" and str(x) != "None" else ""
-                    )
+                    try:
+                        filtered_frames[f"{field}_desc"] = filtered_frames[field].apply(
+                            lambda x: mapping.get(str(x), "") if pd.notna(x) and str(x).strip() != "" and str(x) != "None" else ""
+                        )
+                    except Exception as e:
+                        logger.debug(f"Error creating description for {field}: {e}")
+                        filtered_frames[f"{field}_desc"] = ""
                 else:
-                    filtered_frames[f"{field}_desc"] = filtered_frames[field].map(mapping).fillna(
-                        filtered_frames[field].apply(lambda x: f"Unknown ({x})" if pd.notna(x) else "")
-                    )
+                    try:
+                        filtered_frames[f"{field}_desc"] = filtered_frames[field].map(mapping).fillna(
+                            filtered_frames[field].apply(lambda x: f"Unknown ({x})" if pd.notna(x) else "")
+                        )
+                    except Exception as e:
+                        logger.debug(f"Error mapping field {field}: {e}")
+                        filtered_frames[f"{field}_desc"] = filtered_frames[field].astype(str)
         
         # Filter frames based on selected file
         if selected_file and selected_file.strip():
