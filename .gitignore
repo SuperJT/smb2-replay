@@ -60,4 +60,4 @@ evidence/
 *.tmp
 *.temp
 .cache/
-.pytest_cache/
+.pytest_cache/smb2_fields.txt
