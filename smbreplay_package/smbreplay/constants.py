@@ -339,7 +339,7 @@ INFO_LEVEL_MAPPING = {
 FIELD_MAPPINGS = {
     "smb2.cmd": {
         "mapping": {str(k): v[0] for k, v in SMB2_OP_NAME_DESC.items()},
-        "normalize": lambda x: str(int(float(x.split(',')[0].strip()))) if x and pd.notna(x) and isinstance(x, str) else str(int(x)) if x and pd.notna(x) else None,
+        "normalize": lambda x: str(int(float(x.split(',')[0].strip().replace('{', '').replace('}', '').replace("'", '')))) if x and pd.notna(x) and isinstance(x, str) else str(int(x)) if x and pd.notna(x) else None,
         "description": "Maps SMB2 command codes to operation names."
     },
     "smb2.nt_status": {
@@ -366,7 +366,7 @@ FIELD_MAPPINGS = {
     },
     "smb2.msg_id": {
         "mapping": {},
-        "normalize": lambda x: str(int(float(x.split(',')[0].strip()))) if x and pd.notna(x) and isinstance(x, str) else str(int(x)) if x and pd.notna(x) else None,
+        "normalize": lambda x: str(int(float(x.split(',')[0].strip().replace('{', '').replace('}', '').replace("'", '')))) if x and pd.notna(x) and isinstance(x, str) else str(int(x)) if x and pd.notna(x) else None,
         "description": "Keeps message ID as decimal string for comparison."
     },
     "smb2.fid": {
