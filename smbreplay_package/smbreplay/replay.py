@@ -148,6 +148,11 @@ class SMB2Replayer:
             return
         
         expected_status = operation.get('smb2.nt_status', 'N/A')
+        # Defensive: ensure both are strings for .startswith
+        if not isinstance(expected_status, str):
+            expected_status = str(expected_status)
+        if not isinstance(actual_status, str):
+            actual_status = str(actual_status)
         frame_number = operation.get('Frame', 'N/A')
         command = operation.get('Command', 'Unknown')
         filename = operation.get('smb2.filename', 'N/A')
@@ -161,8 +166,8 @@ class SMB2Replayer:
             self.logger.debug(f"Request frame {frame_number}: Assuming expected status {expected_status}")
         
         # Normalize status codes for comparison
-        expected_hex = expected_status if expected_status.startswith('0x') else f"0x{expected_status:08x}"
-        actual_hex = actual_status if actual_status.startswith('0x') else f"0x{actual_status:08x}"
+        expected_hex = expected_status if expected_status.startswith('0x') else f"0x{int(float(expected_status)):08x}" if expected_status.replace('.','',1).isdigit() else expected_status
+        actual_hex = actual_status if actual_status.startswith('0x') else f"0x{int(float(actual_status)):08x}" if actual_status.replace('.','',1).isdigit() else actual_status
         
         # Check if status codes match
         status_match = expected_hex == actual_hex

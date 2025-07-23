@@ -18,6 +18,21 @@ def handle_create(self, tree, op: Dict[str, Any], all_operations: Optional[List[
         all_operations: All operations in the session (for determining create type and open/create)
     """
     filename = op.get('smb2.filename', '')
+    # Ensure filename is a string and not nan/float
+    import math
+    if isinstance(filename, float):
+        if math.isnan(filename):
+            logger.error(f"Create operation skipped: filename is NaN for op: {op}")
+            self.state['last_new_fid'] = None
+            return
+        filename = str(filename)
+    elif not isinstance(filename, str):
+        filename = str(filename)
+    # Defensive: skip if filename is empty or 'nan' string
+    if not filename or filename.lower() == 'nan':
+        logger.error(f"Create operation skipped: invalid filename '{filename}' for op: {op}")
+        self.state['last_new_fid'] = None
+        return
     rel_filename = get_share_relative_path(self, filename)
     create_type, open_action = ('file', 'create')
     if all_operations:
