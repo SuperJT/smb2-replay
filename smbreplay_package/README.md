@@ -1,13 +1,8 @@
-# SMB2 Replay System
+# SMB2 Replay Project
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/SuperJT/smb2-replay/releases/tag/v1.0.0)
-[![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+This project provides a system to capture, store, and replay SMB2 (Server Message Block version 2) network traffic for diagnostic, testing, and protocol analysis purposes in a controlled lab environment.
 
-A comprehensive system to capture, store, and replay SMB2 (Server Message Block version 2) network traffic for diagnostic, testing, and protocol analysis purposes in a controlled lab environment.
-
-**Repository**: https://github.com/SuperJT/smb2-replay  
-**Release**: [v1.0.0](RELEASE_NOTES_1.0.0.md) - Production Ready
+**Repository**: https://github.com/SuperJT/smb2-replay
 
 ## Project Overview
 
@@ -246,58 +241,4 @@ smbreplay config set traces_folder ~/cases
 - **"No configuration found"**: Run `smbreplay config show` and set required values
 - **"No sessions found"**: Ensure PCAP file was ingested successfully
 - **"Connection failed"**: Check server configuration and network connectivity
-- **"File not found"**: Verify PCAP file path and use quotes for spaces
-
-## Development and Project Management
-
-### Agentic Tools Integration
-
-This project uses [Agentic Tools](https://github.com/agentic-tools/agentic-tools) for intelligent project management and development workflow automation. The integration provides:
-
-- **Project Organization**: Structured task management with dependencies and priorities
-- **Progress Tracking**: Real-time progress monitoring and milestone tracking
-- **Intelligent Recommendations**: AI-powered task recommendations based on current state
-- **Memory Management**: Persistent knowledge storage for project context
-- **Research Integration**: Automated research capabilities for technical decisions
-
-### Development Workflow
-
-The project follows a structured development workflow:
-
-1. **Task Management**: Tasks are organized with priorities, complexity estimates, and dependencies
-2. **Quality Assurance**: Automated testing, linting, and code quality checks
-3. **Documentation**: Comprehensive documentation with examples and guides
-4. **Release Management**: Structured release process with changelog and release notes
-
-### Contributing
-
-1. **Fork the repository** and create a feature branch
-2. **Follow the coding standards** and ensure all tests pass
-3. **Update documentation** for any new features or changes
-4. **Submit a pull request** with detailed description of changes
-
-### Testing
-
-Run the test suite to ensure everything is working:
-
-```bash
-# Run all tests
-python -m pytest
-
-# Run with coverage
-python -m pytest --cov=smbreplay
-
-# Run specific test categories
-python -m pytest smbreplay_package/smbreplay/  # Core package tests
-python -m pytest utils/tests/                  # Utility tests
-```
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- SMB protocol community for technical guidance
-- Open source contributors and testers
-- Agentic Tools for intelligent project management 
+- **"File not found"**: Verify PCAP file path and use quotes for spaces 

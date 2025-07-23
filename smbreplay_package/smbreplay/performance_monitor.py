@@ -147,10 +147,20 @@ class PerformanceMonitor:
             elif df[col].dtype == 'float64':
                 df[col] = pd.to_numeric(df[col], errors='coerce', downcast='float')
         
-        # Convert string columns to category for repeated values
+        # Convert string columns to category for repeated values with safe handling
         for col in df.select_dtypes(include=['object']).columns:
-            if df[col].nunique() / len(df) < 0.5:
-                df[col] = df[col].astype('category')
+            try:
+                if df[col].nunique() / len(df) < 0.5:
+                    # Handle existing categorical columns safely
+                    if df[col].dtype.name == 'category':
+                        # Already categorical, skip
+                        continue
+                    else:
+                        # Convert to categorical with error handling
+                        df[col] = df[col].astype('category')
+            except Exception as e:
+                logger.debug(f"Could not convert column {col} to categorical in performance monitor: {e}")
+                # Continue with other columns
         
         return df
     

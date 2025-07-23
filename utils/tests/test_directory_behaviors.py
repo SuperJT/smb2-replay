@@ -167,11 +167,12 @@ def test_directory_listing(smb_env):
     Covers: test_directory_listing
     """
     tree = smb_env["tree"]
-    # Create a directory and a file
+    # Create a directory and a file inside the directory
     dir_name = f"pytest_list_dir_{uuid.uuid4().hex[:8]}"
     file_name = f"pytest_list_file_{uuid.uuid4().hex[:8]}.txt"
+    
+    # Create directory first
     dir_handle = Open(tree, dir_name)
-    file_handle = Open(tree, file_name)
     dir_handle.create(
         ImpersonationLevel.Impersonation,
         FilePipePrinterAccessMask.GENERIC_READ | FilePipePrinterAccessMask.GENERIC_WRITE,
@@ -180,6 +181,11 @@ def test_directory_listing(smb_env):
         CreateDisposition.FILE_CREATE,
         CreateOptions.FILE_DIRECTORY_FILE
     )
+    dir_handle.close()
+
+    # Create file inside the directory
+    file_path = f"{dir_name}\\{file_name}"
+    file_handle = Open(tree, file_path)
     file_handle.create(
         ImpersonationLevel.Impersonation,
         FilePipePrinterAccessMask.GENERIC_READ | FilePipePrinterAccessMask.GENERIC_WRITE,
@@ -188,7 +194,6 @@ def test_directory_listing(smb_env):
         CreateDisposition.FILE_CREATE,
         0
     )
-    dir_handle.close()
     file_handle.close()
 
     # Re-open the directory for listing

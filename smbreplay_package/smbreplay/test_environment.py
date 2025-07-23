@@ -36,10 +36,9 @@ def test_imports():
     print()
     if failed:
         print(f"❌ {len(failed)} packages failed to import: {', '.join(failed)}")
-        return False
+        raise ImportError(f"Failed to import packages: {', '.join(failed)}")
     else:
         print("✅ All packages imported successfully!")
-        return True
 
 def test_package_structure():
     """Test that the package structure is correct"""
@@ -73,10 +72,9 @@ def test_package_structure():
     print()
     if missing:
         print(f"❌ {len(missing)} files missing: {', '.join(missing)}")
-        return False
+        raise FileNotFoundError(f"Missing required files: {', '.join(missing)}")
     else:
         print("✅ Package structure is complete!")
-        return True
 
 def test_system_tools():
     """Test that required system tools are available"""
@@ -108,28 +106,27 @@ def test_system_tools():
     if missing:
         print(f"⚠️  {len(missing)} tools missing: {', '.join(missing)}")
         print("   Install with: sudo apt install tshark pcapfix")
-        return False
+        raise FileNotFoundError(f"Missing system tools: {', '.join(missing)}")
     else:
         print("✅ All system tools available!")
-        return True
 
 def main():
     print("=" * 60)
     print("SMB2 Replay Environment Test")
     print("=" * 60)
     
-    imports_ok = test_imports()
-    structure_ok = test_package_structure()
-    tools_ok = test_system_tools()
-    
-    print()
-    if imports_ok and structure_ok and tools_ok:
+    try:
+        test_imports()
+        test_package_structure()
+        test_system_tools()
+        
+        print()
         print("🎉 Environment setup successful!")
         print("You can now use the SMB2 Replay system:")
         print("  python -m smbreplay --help")
         print("  python -m smbreplay info")
-    else:
-        print("❌ Environment setup incomplete. Please check the errors above.")
+    except Exception as e:
+        print(f"❌ Environment setup incomplete: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ def get_version():
 def get_long_description():
     """Get long description from README"""
     try:
-        with open("../README.md", "r", encoding="utf-8") as f:
+        with open("README.md", "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
         return "A comprehensive tool for capturing, analyzing, and replaying SMB2 network traffic"
@@ -32,7 +32,7 @@ def get_long_description():
 def get_requirements():
     """Get requirements from requirements.txt"""
     try:
-        with open("../requirements.txt", "r", encoding="utf-8") as f:
+        with open("requirements.txt", "r", encoding="utf-8") as f:
             return [line.strip() for line in f if line.strip() and not line.startswith("#")]
     except FileNotFoundError:
         return [

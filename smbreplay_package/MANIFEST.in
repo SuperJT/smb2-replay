@@ -1,0 +1,26 @@
+# Include README and documentation
+include README.md
+include requirements.txt
+
+# Include package data
+include smbreplay/*.txt
+include smbreplay/*.md
+
+# Include test files
+recursive-include smbreplay *.py
+
+# Exclude cache and build files
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__
+global-exclude .pytest_cache
+global-exclude .mypy_cache
+global-exclude *.egg-info
+global-exclude build
+global-exclude dist
+
+# Exclude development files
+global-exclude .git
+global-exclude .gitignore
+global-exclude .vscode
+global-exclude *.log 
