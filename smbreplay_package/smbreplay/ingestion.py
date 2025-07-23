@@ -187,6 +187,23 @@ def extract_sessions_from_dataframe_optimized(df: pd.DataFrame, unique_sesids: L
     return sessions
 
 
+def _convert_numpy_types(obj):
+    """Convert numpy types to native Python types for JSON serialization."""
+    import numpy as np
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: _convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_numpy_types(item) for item in obj]
+    else:
+        return obj
+
+
 def save_session_metadata(case_number: str, trace_name: str, sessions: Dict[str, pd.DataFrame], 
                          output_dir: str):
     """Save session metadata to JSON with performance stats.
@@ -208,22 +225,33 @@ def save_session_metadata(case_number: str, trace_name: str, sessions: Dict[str,
             memory_mb = df.memory_usage(deep=True).sum() / 1024**2
             total_memory += memory_mb
             
+            # Calculate unique commands safely
+            unique_commands = 0
+            if 'smb2.cmd' in df.columns:
+                try:
+                    unique_commands = int(df['smb2.cmd'].apply(len).sum())
+                except (TypeError, ValueError):
+                    unique_commands = 0
+            
             session_details[sesid] = {
-                "frame_count": len(df),
-                "columns": len(df.columns),
+                "frame_count": int(len(df)),
+                "columns": int(len(df.columns)),
                 "memory_mb": round(memory_mb, 2),
-                "unique_commands": df['smb2.cmd'].apply(len).sum() if 'smb2.cmd' in df.columns else 0
+                "unique_commands": unique_commands
             }
         
         metadata = {
             "case_number": case_number,
             "trace_name": trace_name,
-            "session_count": len(sessions),
+            "session_count": int(len(sessions)),
             "total_memory_mb": round(total_memory, 2),
             "session_details": session_details,
             "optimization_applied": True,
             "extraction_timestamp": time.time()
         }
+        
+        # Convert any numpy types to native Python types
+        metadata = _convert_numpy_types(metadata)
         
         metadata_path = os.path.join(output_dir, "session_metadata.json")
         with open(metadata_path, 'w') as f:
