@@ -171,13 +171,28 @@ class SessionManager:
         numeric_cols = ['frame.number', 'tcp.stream']
         for col in numeric_cols:
             if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce', downcast='integer')
+                try:
+                    df[col] = pd.to_numeric(df[col], errors='coerce', downcast='integer')
+                except Exception as e:
+                    logger.debug(f"Could not optimize numeric column {col}: {e}")
         
-        # Convert categorical columns for repeated values
+        # Convert categorical columns for repeated values with safe handling
         categorical_threshold = 0.5  # If less than 50% unique values
         for col in df.select_dtypes(include=['object']).columns:
-            if col in df.columns and df[col].nunique() / len(df) < categorical_threshold:
-                df[col] = df[col].astype('category')
+            if col in df.columns:
+                try:
+                    # Check if column is suitable for categorical conversion
+                    if df[col].nunique() / len(df) < categorical_threshold:
+                        # Handle existing categorical columns safely
+                        if df[col].dtype.name == 'category':
+                            # Already categorical, skip
+                            continue
+                        else:
+                            # Convert to categorical with error handling
+                            df[col] = df[col].astype('category')
+                except Exception as e:
+                    logger.debug(f"Could not convert column {col} to categorical: {e}")
+                    # Continue with other columns
         
         final_memory = df.memory_usage(deep=True).sum() / 1024**2
         memory_reduction = ((initial_memory - final_memory) / initial_memory) * 100
