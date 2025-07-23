@@ -131,12 +131,13 @@ def test_fresh_state_reset():
         print(f"  Successful operations: {results2['successful_operations']}")
         print(f"  Failed operations: {results2['failed_operations']}")
         
-        return results['success'] and results2['success']
+        assert results['success'] and results2['success'], "Fresh state reset test failed"
         
     except Exception as e:
         print(f"❌ Error during fresh state reset test: {e}")
         import traceback
         traceback.print_exc()
+        raise
         return False
 
 def main():

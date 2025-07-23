@@ -112,14 +112,13 @@ def test_simple_directory():
         except:
             pass
         
-        return True
         
     except SMBException as e:
         print(f"❌ SMB Error: {e}")
-        return False
+        raise
     except Exception as e:
         print(f"❌ Error: {e}")
-        return False
+        raise
 
 if __name__ == "__main__":
     success = test_simple_directory()

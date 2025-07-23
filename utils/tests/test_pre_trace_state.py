@@ -207,14 +207,13 @@ def test_pre_trace_state():
         except:
             pass
         
-        return True
         
     except SMBException as e:
         print(f"❌ SMB Error: {e}")
-        return False
+        raise
     except Exception as e:
         print(f"❌ Error: {e}")
-        return False
+        raise
 
 def validate_file_system_structure(paths: set, created_dirs: set):
     """Validate that the file system structure is ready for replay."""

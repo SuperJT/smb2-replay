@@ -123,13 +123,13 @@ def test_response_validation():
                         if detail['actual_error']:
                             print(f"    Error: {detail['actual_error']}")
         
-        return results['success']
+        assert results['success'], "Response validation test failed"
         
     except Exception as e:
         print(f"❌ Error during response validation test: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 def main():
     """Main function."""

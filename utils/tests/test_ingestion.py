@@ -10,6 +10,9 @@ TRACES_FOLDER = "/Users/jtownsen/cases"
 CAPTURE_PATH = os.path.join(TRACES_FOLDER, CASE_NUMBER, f"{TRACE_NAME}.pcapng")
 
 def test_run_ingestion_and_load():
+    # Skip test if the specific test file doesn't exist
+    if not os.path.exists(CAPTURE_PATH):
+        pytest.skip(f"Test file not found: {CAPTURE_PATH}")
 
     # Run ingestion
     result = ingestion.run_ingestion(

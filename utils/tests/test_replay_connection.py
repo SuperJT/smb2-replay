@@ -126,12 +126,11 @@ def test_replay_connection():
         print("✓ Configuration updated!")
         
         print("\n🎉 All tests passed! SMB replay connection is working.")
-        return True
         
     except Exception as e:
         print(f"\n❌ Connection test failed: {e}")
         logger.error(f"Connection test failed: {e}", exc_info=True)
-        return False
+        raise
 
 
 def test_replay_configuration():
@@ -163,10 +162,9 @@ def test_replay_configuration():
     if missing_fields:
         print(f"⚠️  Missing required configuration: {', '.join(missing_fields)}")
         print("Use 'smbreplay config set <field> <value>' to configure")
-        return False
+        raise ValueError(f"Missing required configuration: {', '.join(missing_fields)}")
     else:
         print("✓ All required fields are configured")
-        return True
 
 
 def test_replay_system():
@@ -220,14 +218,13 @@ def test_replay_system():
         if result.get('success'):
             print(f"\n✅ Replay system test successful!")
             print(f"   Operations: {result.get('successful_operations', 0)}/{result.get('total_operations', 0)}")
-            return True
         else:
             print(f"\n❌ Replay system test failed: {result.get('error', 'Unknown error')}")
-            return False
+            raise AssertionError(f"Replay system test failed: {result.get('error', 'Unknown error')}")
         
     except Exception as e:
         print(f"❌ Replay system test failed: {e}")
-        return False
+        raise
 
 
 def main():

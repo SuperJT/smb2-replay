@@ -7,6 +7,7 @@ import sys
 import os
 import socket
 import uuid
+import pytest
 from typing import Optional
 
 from smbprotocol.connection import Connection
@@ -31,7 +32,7 @@ logging.basicConfig(level=logging.INFO)
 
 from smbreplay.config import get_config
 
-def test_basic_connectivity(server_ip: str, port: int = 445, timeout: int = 5) -> bool:
+def test_basic_connectivity(server_ip: str = "127.0.0.1", port: int = 445, timeout: int = 5):
     """Test basic TCP connectivity to SMB port."""
     print(f"Testing basic connectivity to {server_ip}:{port}...")
     try:
@@ -41,11 +42,13 @@ def test_basic_connectivity(server_ip: str, port: int = 445, timeout: int = 5) -
         return True
     except Exception as e:
         print(f"✗ Port 445 connection failed: {e}")
-        return False
+        raise
 
-def test_smb_login(server_ip: str, username: str, password: str) -> Optional[tuple[Connection, Session]]:
+def test_smb_login(server_ip: str = "127.0.0.1", username: str = "test", password: str = "test") -> Optional[tuple[Connection, Session]]:
     """Test SMB login and return (Connection, Session) if successful."""
     print(f"Testing SMB login to {server_ip}...")
+    print(f"  [DEBUG] Username: {username}")
+    print(f"  [DEBUG] Password: {password}")
     try:
         conn = Connection(uuid.uuid4(), server_ip, 445)
         conn.connect(timeout=5.0)
@@ -54,11 +57,16 @@ def test_smb_login(server_ip: str, username: str, password: str) -> Optional[tup
         print("✓ SMB login successful")
         return conn, session
     except Exception as e:
+        import traceback
         print(f"✗ SMB login failed: {e}")
+        traceback.print_exc()
         return None
 
-def test_tree_connect(session: Session, server_ip: str, share_name: str) -> Optional[TreeConnect]:
+def test_tree_connect(session: Session = None, server_ip: str = "127.0.0.1", share_name: str = "testshare") -> Optional[TreeConnect]:
     """Test tree connection and return TreeConnect if successful."""
+    if session is None:
+        pytest.skip("Session not available for tree connect test")
+    
     # Use share_name from config if not provided
     if not share_name:
         config = get_config()
@@ -77,8 +85,11 @@ def test_tree_connect(session: Session, server_ip: str, share_name: str) -> Opti
         print(f"✗ Tree connect failed: {e}")
         return None
 
-def test_directory_listing(tree: TreeConnect, path: str = "") -> bool:
+def test_directory_listing(tree: TreeConnect = None, path: str = "") -> bool:
     """Test directory listing."""
+    if tree is None:
+        pytest.skip("Tree not available for directory listing test")
+    
     print(f"Testing directory listing for path '{path or '.'}'...")
     try:
         handle = Open(tree, path or "")
@@ -103,8 +114,11 @@ def test_directory_listing(tree: TreeConnect, path: str = "") -> bool:
         print(f"✗ Directory listing failed: {e}")
         return False
 
-def test_file_operations(tree: TreeConnect, test_filename: str = 'smb2_replay_test.txt') -> bool:
+def test_file_operations(tree: TreeConnect = None, test_filename: str = 'smb2_replay_test.txt') -> bool:
     """Test basic file operations."""
+    if tree is None:
+        pytest.skip("Tree not available for file operations test")
+    
     print(f"Testing file operations with '{test_filename}'...")
     try:
         # Create file

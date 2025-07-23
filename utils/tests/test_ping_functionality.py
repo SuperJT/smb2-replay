@@ -133,10 +133,11 @@ def test_ping_functionality():
             print(f"  Mismatched responses: {validation['mismatched_responses']}")
             print(f"  Match rate: {validation['match_rate']:.1f}%")
         
-        return results['success']
+        assert results['success'], "Ping functionality test failed"
         
     except Exception as e:
         print(f"❌ Error during ping functionality test: {e}")
+        raise
         import traceback
         traceback.print_exc()
         return False
