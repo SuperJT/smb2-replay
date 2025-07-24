@@ -1,7 +1,8 @@
 # SMB2 Replay System
 
-<!-- Badges are not supported for Bitbucket Server. Remove or replace as needed. -->
-...existing code...
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://bitbucket.ngage.netapp.com/users/jtownsen/repos/smbreplay/browse?at=refs%2Ftags%2Fv1.0.0)
+[![Python](https://img.shields.io/badge/python-3.12+-green.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 A comprehensive system to capture, store, and replay SMB2 (Server Message Block version 2) network traffic for diagnostic, testing, and protocol analysis purposes in a controlled lab environment.
 
