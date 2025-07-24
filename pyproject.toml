@@ -1,0 +1,236 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smbreplay"
+version = "1.0.0"
+description = "SMB2 Replay System - Capture, analyze, and replay SMB2 traffic"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "SMBReplay Team"}
+]
+keywords = ["smb", "smb2", "replay", "network", "protocol", "analysis"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Networking",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "smbprotocol>=1.5.0",
+    "pandas>=1.3.0",
+    "pyarrow>=7.0.0",
+    "pyyaml>=6.0",
+    "click>=8.0.0",
+    "rich>=12.0.0",
+    "psutil>=5.8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+smbreplay = "smbreplay.main:main"
+
+[tool.setuptools.packages.find]
+where = ["smbreplay_package"]
+
+[tool.setuptools.package-data]
+smbreplay = ["*.txt", "*.md"]
+
+# Black configuration
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | venv
+)/
+'''
+
+# isort configuration
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+known_first_party = ["smbreplay"]
+known_third_party = [
+    "smbprotocol",
+    "pandas",
+    "pyarrow",
+    "pyyaml",
+    "click",
+    "rich",
+    "psutil",
+    "argparse",
+    "logging",
+    "os",
+    "sys",
+    "typing",
+    "signal",
+    "uuid",
+    "json",
+    "time",
+    "datetime",
+    "pathlib",
+    "subprocess",
+    "threading",
+    "queue",
+    "collections",
+    "itertools",
+    "functools",
+    "contextlib",
+    "tempfile",
+    "shutil",
+    "glob",
+    "re",
+    "hashlib",
+    "base64",
+    "socket",
+    "struct",
+    "pickle",
+    "copy",
+    "weakref",
+    "abc",
+    "enum",
+    "dataclasses",
+    "asyncio",
+    "concurrent",
+    "multiprocessing",
+    "traceback",
+    "inspect",
+    "warnings",
+    "builtins",
+    "types",
+    "typing_extensions",
+]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+default_section = "THIRDPARTY"
+
+# Flake8 configuration
+[tool.flake8]
+max-line-length = 88
+extend-ignore = [
+    "E203",  # whitespace before ':'
+    "E501",  # line too long (handled by black)
+    "W503",  # line break before binary operator
+    "W504",  # line break after binary operator
+]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".venv",
+    "venv",
+    ".mypy_cache",
+    ".pytest_cache",
+]
+per-file-ignores = [
+    "__init__.py:F401",  # imported but unused
+    "tests/*:E501",      # allow long lines in tests
+]
+
+# MyPy configuration
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "smbprotocol.*",
+    "pandas.*",
+    "pyarrow.*",
+    "pyyaml.*",
+    "click.*",
+    "rich.*",
+    "psutil.*",
+]
+ignore_missing_imports = true
+
+# Pytest configuration
+[tool.pytest.ini_options]
+testpaths = ["tests", "utils/tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+    "--tb=short",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["smbreplay_package/smbreplay"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+] 
