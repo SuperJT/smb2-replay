@@ -61,3 +61,6 @@ evidence/
 *.temp
 .cache/
 .pytest_cache/smb2_fields.txt
+
+# Backup files from formatting
+*.backup
