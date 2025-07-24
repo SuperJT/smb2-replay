@@ -803,8 +803,8 @@ class SMB2Replayer:
         replay_config = self.get_replay_config()
         server_ip = replay_config.get("server_ip", "127.0.0.1")
         domain = replay_config.get("domain", "")
-        username = replay_config.get("username", "jtownsen")
-        password = replay_config.get("password", "P@ssw0rd")
+        username = replay_config.get("username", "testuser")
+        password = replay_config.get("password", "PASSWORD")
         default_tree_name = replay_config.get("tree_name", "testshare")
         max_wait = replay_config.get("max_wait", 5.0)
 

@@ -631,8 +631,8 @@ class SMB2ReplaySystem:
         # Get replay configuration
         replay_config = self.config.replay_config.copy()
         server_ip = replay_config.get("server_ip", "127.0.0.1")
-        username = replay_config.get("username", "jtownsen")
-        password = replay_config.get("password", "P@ssw0rd")
+        username = replay_config.get("username", "testuser")
+        password = replay_config.get("password", "PASSWORD")
         tree_name = replay_config.get("tree_name", "testshare")
 
         if dry_run:

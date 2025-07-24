@@ -13,11 +13,11 @@ from typing import List, Optional, TypedDict
 DEFAULT_PCAP_CONFIG = {"capture_path": None, "verbose_level": 0}  # Default to CRITICAL
 
 DEFAULT_REPLAY_CONFIG = {
-    "server_ip": "10.216.29.241",
-    "domain": "nas-deep.local",
-    "username": "jtownsen",
+    "server_ip": "127.0.0.1",
+    "domain": "",
+    "username": "testuser",
     "password": "PASSWORD",
-    "tree_name": "2pm",
+    "tree_name": "testshare",
     "max_wait": 5.0,
 }
 
@@ -299,8 +299,8 @@ class ConfigManager:
     def get_server_ip(self) -> str:
         """Get the replay server IP address."""
         self._ensure_config_loaded()
-        value = self.replay_config.get("server_ip", "10.216.29.241")
-        return str(value) if value is not None else "10.216.29.241"
+        value = self.replay_config.get("server_ip", "127.0.0.1")
+        return str(value) if value is not None else "127.0.0.1"
 
     def set_server_ip(self, server_ip: str) -> None:
         """Set the replay server IP address."""
@@ -312,8 +312,8 @@ class ConfigManager:
     def get_domain(self) -> str:
         """Get the replay server domain."""
         self._ensure_config_loaded()
-        value = self.replay_config.get("domain", "nas-deep.local")
-        return str(value) if value is not None else "nas-deep.local"
+        value = self.replay_config.get("domain", "")
+        return str(value) if value is not None else ""
 
     def set_domain(self, domain: str) -> None:
         """Set the replay server domain."""
@@ -325,8 +325,8 @@ class ConfigManager:
     def get_username(self) -> str:
         """Get the replay server username."""
         self._ensure_config_loaded()
-        value = self.replay_config.get("username", "jtownsen")
-        return str(value) if value is not None else "jtownsen"
+        value = self.replay_config.get("username", "testuser")
+        return str(value) if value is not None else "testuser"
 
     def set_username(self, username: str) -> None:
         """Set the replay server username."""
@@ -351,8 +351,8 @@ class ConfigManager:
     def get_tree_name(self) -> str:
         """Get the replay server tree/share name."""
         self._ensure_config_loaded()
-        value = self.replay_config.get("tree_name", "2pm")
-        return str(value) if value is not None else "2pm"
+        value = self.replay_config.get("tree_name", "testshare")
+        return str(value) if value is not None else "testshare"
 
     def set_tree_name(self, tree_name: str) -> None:
         """Set the replay server tree/share name."""
