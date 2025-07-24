@@ -2,8 +2,9 @@
 """
 Test script to verify the SMB2 Replay environment setup
 """
-import sys
 import os
+import sys
+
 
 def test_imports():
     """Test that all required packages can be imported"""
@@ -11,19 +12,19 @@ def test_imports():
     print(f"Python version: {sys.version}")
     print(f"Current directory: {os.getcwd()}")
     print()
-    
+
     # Test core dependencies
     packages = [
-        ('pandas', 'Data manipulation'),
-        ('pyarrow', 'Parquet file support'),
-        ('numpy', 'Numerical computing'),
-        ('paramiko', 'SSH connections'),
-        ('scapy', 'Network packet analysis'),
-        ('psutil', 'System monitoring'),
-        ('click', 'CLI interface'),
-        ('dotenv', 'Environment configuration'),
+        ("pandas", "Data manipulation"),
+        ("pyarrow", "Parquet file support"),
+        ("numpy", "Numerical computing"),
+        ("paramiko", "SSH connections"),
+        ("scapy", "Network packet analysis"),
+        ("psutil", "System monitoring"),
+        ("click", "CLI interface"),
+        ("dotenv", "Environment configuration"),
     ]
-    
+
     failed = []
     for package, description in packages:
         try:
@@ -32,7 +33,7 @@ def test_imports():
         except ImportError as e:
             print(f"✗ {package:15} - {description} (FAILED: {e})")
             failed.append(package)
-    
+
     print()
     if failed:
         print(f"❌ {len(failed)} packages failed to import: {', '.join(failed)}")
@@ -40,26 +41,27 @@ def test_imports():
     else:
         print("✅ All packages imported successfully!")
 
+
 def test_package_structure():
     """Test that the package structure is correct"""
     print("Testing package structure...")
-    
+
     # Get the directory where this script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     required_files = [
-        '__init__.py',
-        '__main__.py',
-        'config.py',
-        'constants.py',
-        'tshark_processor.py',
-        'ingestion.py',
-        'session_manager.py',
-        'replay.py',
-        'main.py',
-        'utils.py',
+        "__init__.py",
+        "__main__.py",
+        "config.py",
+        "constants.py",
+        "tshark_processor.py",
+        "ingestion.py",
+        "session_manager.py",
+        "replay.py",
+        "main.py",
+        "utils.py",
     ]
-    
+
     missing = []
     for file in required_files:
         file_path = os.path.join(script_dir, file)
@@ -68,7 +70,7 @@ def test_package_structure():
         else:
             print(f"✗ Missing: {file}")
             missing.append(file)
-    
+
     print()
     if missing:
         print(f"❌ {len(missing)} files missing: {', '.join(missing)}")
@@ -76,24 +78,32 @@ def test_package_structure():
     else:
         print("✅ Package structure is complete!")
 
+
 def test_system_tools():
     """Test that required system tools are available"""
     print("Testing system tools...")
-    
+
     import subprocess
-    
+
     tools = [
-        ('tshark', 'Wireshark command-line tool', ['--version']),
-        ('pcapfix', 'PCAP file repair utility', ['--version']),  # pcapfix shows usage on --version
+        ("tshark", "Wireshark command-line tool", ["--version"]),
+        (
+            "pcapfix",
+            "PCAP file repair utility",
+            ["--version"],
+        ),  # pcapfix shows usage on --version
     ]
-    
+
     missing = []
     for tool, description, args in tools:
         try:
-            result = subprocess.run([tool] + args, 
-                                  capture_output=True, text=True, timeout=5, check=False)
+            result = subprocess.run(
+                [tool] + args, capture_output=True, text=True, timeout=5, check=False
+            )
             # pcapfix returns non-zero on --version but still shows version info
-            if result.returncode == 0 or (tool == 'pcapfix' and 'pcapfix' in result.stdout):
+            if result.returncode == 0 or (
+                tool == "pcapfix" and "pcapfix" in result.stdout
+            ):
                 print(f"✓ {tool:15} - {description}")
             else:
                 print(f"✗ {tool:15} - {description} (not working)")
@@ -101,7 +111,7 @@ def test_system_tools():
         except (FileNotFoundError, subprocess.TimeoutExpired):
             print(f"✗ {tool:15} - {description} (not found)")
             missing.append(tool)
-    
+
     print()
     if missing:
         print(f"⚠️  {len(missing)} tools missing: {', '.join(missing)}")
@@ -110,16 +120,17 @@ def test_system_tools():
     else:
         print("✅ All system tools available!")
 
+
 def main():
     print("=" * 60)
     print("SMB2 Replay Environment Test")
     print("=" * 60)
-    
+
     try:
         test_imports()
         test_package_structure()
         test_system_tools()
-        
+
         print()
         print("🎉 Environment setup successful!")
         print("You can now use the SMB2 Replay system:")
@@ -129,5 +140,6 @@ def main():
         print(f"❌ Environment setup incomplete: {e}")
         sys.exit(1)
 
+
 if __name__ == "__main__":
-    main() 
+    main()

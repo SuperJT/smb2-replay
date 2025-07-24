@@ -1,0 +1,8 @@
+{
+  "id": "e5221d73-025d-41f5-8491-2894b4a15c9d",
+  "title": "SMBReplay Python Files Inventory Complete",
+  "details": "Completed comprehensive inventory of Python files in SMBReplay project:\n\n**Total Files**: 32 files in smbreplay package (8,398 lines, ~300KB)\n\n**File Categories**:\n1. **Core Module Files** (4 files): __init__.py, config.py, constants.py, utils.py\n2. **Large Core Files** (5 files): main.py (1,796 lines), replay.py (1,098 lines), session_manager.py (795 lines), ingestion.py (640 lines), tshark_processor.py (487 lines)\n3. **Handler Module Files** (20 files): All SMB2 operation handlers in handlers/ directory\n4. **Test and Utility Files** (4 files): performance_monitor.py, test_*.py, __main__.py\n\n**Risk Assessment**:\n- **High Risk**: main.py, replay.py, session_manager.py (large, critical files)\n- **Medium Risk**: ingestion.py, tshark_processor.py, config.py\n- **Low Risk**: Handler files, test files, utility files\n\n**Additional Files**: setup.py, debug_create_action.py, utils/ directory (32+ additional files)\n\n**Strategy**: Format core dependencies first, then handlers, then large files with extensive testing after each file.\n\nInventory document created: smbreplay_package/CODE_FORMATTING_INVENTORY.md",
+  "category": "project_management",
+  "dateCreated": "2025-07-24T01:20:54.370Z",
+  "dateUpdated": "2025-07-24T01:20:54.370Z"
+}
