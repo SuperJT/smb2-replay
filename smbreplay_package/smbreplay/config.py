@@ -3,17 +3,14 @@ Configuration management for SMB2 Replay system.
 Handles global configuration, logging setup, and persistence.
 """
 
-import os
-import sys
-import pickle
 import logging
-from typing import Dict, Any, Optional, List, TypedDict
+import os
+import pickle
+import sys
+from typing import List, Optional, TypedDict
 
 # Default configurations
-DEFAULT_PCAP_CONFIG = {
-    "capture_path": None,
-    "verbose_level": 0  # Default to CRITICAL
-}
+DEFAULT_PCAP_CONFIG = {"capture_path": None, "verbose_level": 0}  # Default to CRITICAL
 
 DEFAULT_REPLAY_CONFIG = {
     "server_ip": "10.216.29.241",
@@ -21,16 +18,17 @@ DEFAULT_REPLAY_CONFIG = {
     "username": "jtownsen",
     "password": "PASSWORD",
     "tree_name": "2pm",
-    "max_wait": 5.0
+    "max_wait": 5.0,
 }
 
 # Map verbosity levels (0–3) to logging levels
 VERBOSITY_TO_LOGGING = {
     0: logging.CRITICAL,  # Only critical errors
-    1: logging.INFO,      # Info and above
-    2: logging.DEBUG,     # Debug and above
-    3: logging.DEBUG      # Same as 2, but can extend for finer granularity later
+    1: logging.INFO,  # Info and above
+    2: logging.DEBUG,  # Debug and above
+    3: logging.DEBUG,  # Same as 2, but can extend for finer granularity later
 }
+
 
 # Add a TypedDict for pcap_config to ensure correct types
 class PcapConfig(TypedDict, total=False):
@@ -40,112 +38,126 @@ class PcapConfig(TypedDict, total=False):
 
 class ConfigManager:
     """Manages configuration settings and persistence."""
-    
+
     def __init__(self, config_dir: Optional[str] = None):
         """Initialize configuration manager.
-        
+
         Args:
             config_dir: Directory to store config files. Defaults to user's home config directory.
         """
         if config_dir is None:
             # Use user-specific config directory
-            if os.name == 'nt':  # Windows
-                config_dir = os.path.expanduser('~\\AppData\\Local\\smbreplay')
+            if os.name == "nt":  # Windows
+                config_dir = os.path.expanduser("~\\AppData\\Local\\smbreplay")
             else:  # Unix-like systems
-                config_dir = os.path.expanduser('~/.config/smbreplay')
-        
+                config_dir = os.path.expanduser("~/.config/smbreplay")
+
         self.config_dir = config_dir
         self.config_file = os.path.join(self.config_dir, "config.pkl")
-        
+
         # Initialize configurations
         self.pcap_config: PcapConfig = DEFAULT_PCAP_CONFIG.copy()  # type: ignore
         self.replay_config = DEFAULT_REPLAY_CONFIG.copy()
-        
+
         # Set up traces folder path (but don't create it yet)
-        self.traces_folder: str = os.environ.get('TRACES_FOLDER', os.path.expanduser('~/cases'))
-        
+        self.traces_folder: str = os.environ.get(
+            "TRACES_FOLDER", os.path.expanduser("~/cases")
+        )
+
         # Session management
         self.current_session_id: Optional[str] = None
         self.current_case_id: Optional[str] = None
         self.current_trace_name: Optional[str] = None
-        
+
         # Lazy initialization flags
         self._config_loaded = False
         self._logger = None
         self._dirs_created = False
-        
+
         # Initialize other globals
         self.operations: List[dict] = []
         self.all_cells_run = False
-        
+
     def _ensure_dirs_created(self):
         """Ensure directories are created (lazy initialization)."""
         if not self._dirs_created:
             os.makedirs(self.config_dir, exist_ok=True)
             os.makedirs(self.traces_folder, exist_ok=True)
             self._dirs_created = True
-    
+
     def _ensure_config_loaded(self):
         """Ensure configuration is loaded (lazy initialization)."""
         if not self._config_loaded:
             self._load_config()
             self._config_loaded = True
-    
+
     @property
     def logger(self):
         """Lazy-loaded logger property."""
         if self._logger is None:
             self._logger = self._setup_logging()
         return self._logger
-    
+
     def _load_config(self):
         """Load configuration from pickle file if it exists."""
         if os.path.exists(self.config_file):
             try:
-                with open(self.config_file, 'rb') as f:
+                with open(self.config_file, "rb") as f:
                     loaded_config = pickle.load(f)
-                    
-                if 'pcap_config' in loaded_config:
-                    self.pcap_config.update({
-                        k: v for k, v in loaded_config['pcap_config'].items() 
-                        if k in self.pcap_config
-                    })
-                    
-                if 'replay_config' in loaded_config:
-                    self.replay_config.update({
-                        k: v for k, v in loaded_config['replay_config'].items() 
-                        if k in self.replay_config
-                    })
-                
+
+                if "pcap_config" in loaded_config:
+                    self.pcap_config.update(
+                        {
+                            k: v
+                            for k, v in loaded_config["pcap_config"].items()
+                            if k in self.pcap_config
+                        }
+                    )
+
+                if "replay_config" in loaded_config:
+                    self.replay_config.update(
+                        {
+                            k: v
+                            for k, v in loaded_config["replay_config"].items()
+                            if k in self.replay_config
+                        }
+                    )
+
                 # Load session management fields
-                session_id = loaded_config.get('current_session_id')
-                self.current_session_id = str(session_id) if session_id is not None else None
-                case_id = loaded_config.get('current_case_id')
+                session_id = loaded_config.get("current_session_id")
+                self.current_session_id = (
+                    str(session_id) if session_id is not None else None
+                )
+                case_id = loaded_config.get("current_case_id")
                 self.current_case_id = str(case_id) if case_id is not None else None
-                trace_name = loaded_config.get('current_trace_name')
-                self.current_trace_name = str(trace_name) if trace_name is not None else None
-                    
+                trace_name = loaded_config.get("current_trace_name")
+                self.current_trace_name = (
+                    str(trace_name) if trace_name is not None else None
+                )
+
                 # Only print in debug mode to avoid noise
-                if self.pcap_config.get('verbose_level', 0) >= 2:
+                if self.pcap_config.get("verbose_level", 0) >= 2:
                     print(f"Loaded config from {self.config_file}")
-                
+
             except (pickle.PickleError, IOError) as e:
                 # Only print errors in debug mode
-                if self.pcap_config.get('verbose_level', 0) >= 1:
+                if self.pcap_config.get("verbose_level", 0) >= 1:
                     print(f"Failed to load {self.config_file}: {e}. Using defaults.")
-    
+
     def _setup_logging(self) -> logging.Logger:
         """Set up logging configuration."""
-        logger = logging.getLogger('smbreplay')
+        logger = logging.getLogger("smbreplay")
         logger.handlers = []  # Clear existing handlers
-        
+
         # Stream handler for stdout with broken pipe handling
         stream_handler = logging.StreamHandler(sys.stdout)
-        stream_handler.setFormatter(logging.Formatter(
-            '%(asctime)s - %(levelname)s - [%(asctime)s] %(message)s', 
-            datefmt='%a %b %d %H:%M:%S %Y'
-        ))
-        
+        stream_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s - %(levelname)s - [%(asctime)s] %(message)s",
+                datefmt="%a %b %d %H:%M:%S %Y",
+            )
+        )
+
         # Add a filter to handle broken pipe errors gracefully
         class BrokenPipeFilter(logging.Filter):
             def filter(self, record):
@@ -153,45 +165,51 @@ class ConfigManager:
                     return True
                 except BrokenPipeError:
                     return False
-        
+
         stream_handler.addFilter(BrokenPipeFilter())
         logger.addHandler(stream_handler)
-        
+
         # File handler for persistent logs (create dirs only when needed)
         self._ensure_dirs_created()
-        log_file = os.path.join(self.config_dir, 'smbreplay.log')
+        log_file = os.path.join(self.config_dir, "smbreplay.log")
         file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(logging.Formatter(
-            '%(asctime)s - %(levelname)s - [%(asctime)s] %(message)s', 
-            datefmt='%a %b %d %H:%M:%S %Y'
-        ))
+        file_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s - %(levelname)s - [%(asctime)s] %(message)s",
+                datefmt="%a %b %d %H:%M:%S %Y",
+            )
+        )
         logger.addHandler(file_handler)
-        
+
         # Set logger level from pcap_config
         verbose_level = self.pcap_config.get("verbose_level", 0)
-        logger.setLevel(VERBOSITY_TO_LOGGING.get(
-            verbose_level if verbose_level is not None else 0,
-            logging.CRITICAL
-        ))
-        
+        logger.setLevel(
+            VERBOSITY_TO_LOGGING.get(
+                verbose_level if verbose_level is not None else 0, logging.CRITICAL
+            )
+        )
+
         return logger
-    
+
     def save_config(self):
         """Save current configuration to pickle file."""
         self._ensure_dirs_created()  # Create dirs only when saving
         try:
-            with open(self.config_file, 'wb') as f:
-                pickle.dump({
-                    'pcap_config': self.pcap_config,
-                    'replay_config': self.replay_config,
-                    'current_session_id': self.current_session_id,
-                    'current_case_id': self.current_case_id,
-                    'current_trace_name': self.current_trace_name
-                }, f)
+            with open(self.config_file, "wb") as f:
+                pickle.dump(
+                    {
+                        "pcap_config": self.pcap_config,
+                        "replay_config": self.replay_config,
+                        "current_session_id": self.current_session_id,
+                        "current_case_id": self.current_case_id,
+                        "current_trace_name": self.current_trace_name,
+                    },
+                    f,
+                )
             self.logger.info(f"Saved config to {self.config_file}")
         except (pickle.PickleError, IOError) as e:
             self.logger.error(f"Failed to save {self.config_file}: {e}")
-    
+
     def set_verbosity(self, level: int):
         """Set verbosity level and update logging."""
         self._ensure_config_loaded()  # Load config if needed
@@ -199,46 +217,46 @@ class ConfigManager:
         self.logger.setLevel(VERBOSITY_TO_LOGGING.get(level, logging.CRITICAL))
         self.save_config()
         self.logger.info(f"Updated verbosity to level {level}")
-    
+
     def update_pcap_config(self, **kwargs):
         """Update PCAP configuration."""
         self._ensure_config_loaded()
         self.pcap_config.update(kwargs)
         self.save_config()
-    
+
     def update_replay_config(self, **kwargs):
         """Update replay configuration."""
         self._ensure_config_loaded()
         self.replay_config.update(kwargs)
         self.save_config()
-    
+
     def get_capture_path(self) -> Optional[str]:
         """Get current capture path."""
         self._ensure_config_loaded()
         value = self.pcap_config.get("capture_path")
         return str(value) if value is not None else None
-    
+
     def set_capture_path(self, path: str):
         """Set capture path."""
         self._ensure_config_loaded()
         self.pcap_config["capture_path"] = str(path) if path is not None else None
         self.save_config()
-    
+
     def get_traces_folder(self) -> str:
         """Get traces folder path."""
         return self.traces_folder
-    
+
     def set_traces_folder(self, path: str):
         """Set traces folder path."""
         self.traces_folder = str(os.path.expanduser(path))
         # Only create the directory when it's actually needed
         self._dirs_created = False  # Reset flag to recreate dirs with new path
         self.save_config()
-    
+
     def get_verbosity_level(self) -> int:
         """Get current verbosity level."""
         self._ensure_config_loaded()
-        value = self.pcap_config.get('verbose_level', 0)
+        value = self.pcap_config.get("verbose_level", 0)
         return int(value) if value is not None else 0
 
     def set_session_id(self, session_id: str) -> None:
@@ -363,39 +381,47 @@ class ConfigManager:
 
     def resolve_session_file(self, session_id: str) -> Optional[str]:
         """Resolve a session ID to a session file path.
-        
+
         Args:
             session_id: The session ID to resolve
-            
+
         Returns:
             Path to the session file or None if not found
         """
         import glob
-        
+
         # Get current case and trace from config
         case_id = self.get_case_id()
         trace_name = self.get_trace_name()
-        
+
         if not case_id or not trace_name:
-            self.logger.warning("No case ID or trace name configured. Use 'config set' to configure them.")
+            self.logger.warning(
+                "No case ID or trace name configured. Use 'config set' to configure them."
+            )
             return None
-            
+
         # Build the expected path pattern
-        sessions_dir = os.path.join(self.traces_folder, case_id, '.tracer', trace_name.replace('.pcapng', ''), 'sessions')
-        
+        sessions_dir = os.path.join(
+            self.traces_folder,
+            case_id,
+            ".tracer",
+            trace_name.replace(".pcapng", ""),
+            "sessions",
+        )
+
         # Look for session files matching the session ID
         patterns = [
             f"smb2_session_{session_id}.parquet",
-            f"smb2_session_*{session_id}*.parquet"
+            f"smb2_session_*{session_id}*.parquet",
         ]
-        
+
         for pattern in patterns:
             search_path = os.path.join(sessions_dir, pattern)
             matches = glob.glob(search_path)
             if matches:
                 self.logger.info(f"Found session file: {matches[0]}")
                 return matches[0]
-        
+
         self.logger.warning(f"No session file found for session ID: {session_id}")
         return None
 
