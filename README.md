@@ -31,6 +31,8 @@ Configuration is managed through the Python package's user-specific configuratio
 
 ## Environment Setup
 
+For detailed installation instructions, see [INSTALLATION.md](INSTALLATION.md).
+
 ### Prerequisites
 
 - Python 3.12+ (tested with Python 3.12.3)
@@ -40,8 +42,18 @@ Configuration is managed through the Python package's user-specific configuratio
 - **capinfos**: Wireshark utility for PCAP file information (usually installed with tshark)
 - **pcapfix**: PCAP file repair utility (for corrupted files)
 
-### Installation
+### Quick Installation
 
+**Option 1: Interactive Installation (Recommended)**
+```bash
+git clone https://github.com/SuperJT/smb2-replay.git
+cd smb2-replay
+python3 -m venv venv --copies
+source venv/bin/activate
+python install.py  # Interactive installer
+```
+
+**Option 2: Manual Installation**
 1. **Install system dependencies**:
    ```bash
    # Ubuntu/Debian
@@ -52,26 +64,23 @@ Configuration is managed through the Python package's user-specific configuratio
    pcapfix --help
    ```
 
-2. **Clone the repository**:
+2. **Clone and install**:
    ```bash
    git clone https://github.com/SuperJT/smb2-replay.git
    cd smb2-replay
-   ```
-
-3. **Create and activate the virtual environment**:
-   ```bash
    python3 -m venv venv --copies
    source venv/bin/activate
+   
+   # Basic installation (recommended for new users)
+   pip install -e .
+   
+   # Or with development tools (for developers)
+   pip install -e .[dev-tools]
    ```
 
-4. **Install Python dependencies**:
+3. **Test the environment**:
    ```bash
-   pip install -r requirements.txt
-   ```
-
-5. **Test the environment**:
-   ```bash
-   python test_environment.py
+   python smbreplay_package/smbreplay/test_environment.py
    ```
 
 ### Quick Start
@@ -86,6 +95,26 @@ Configuration is managed through the Python package's user-specific configuratio
    ```bash
    source activate_env.sh
    ```
+
+### Development Tools (Optional)
+
+If you installed with development tools (`pip install -e .[dev-tools]`), you have access to additional utilities:
+
+```bash
+# Test SMB connectivity to your configured server
+python utils/tests/test_smb_connectivity.py
+
+# Clean up test files from SMB server
+python utils/cleanup/cleanup_test_files.py
+
+# Run comprehensive test suite
+python utils/tests/run_tests.py
+
+# Advanced analysis tools
+python utils/analysis/setup_workflow_state.py
+```
+
+**Note**: Development tools are not required for basic SMB2 replay functionality. They provide additional testing, debugging, and analysis capabilities for advanced users and developers.
 
 ## Usage Guide
 
