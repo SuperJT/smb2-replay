@@ -39,11 +39,12 @@ class PcapConfig(TypedDict, total=False):
 class ConfigManager:
     """Manages configuration settings and persistence."""
 
-    def __init__(self, config_dir: Optional[str] = None):
+    def __init__(self, config_dir: Optional[str] = None, state_dir: Optional[str] = None):
         """Initialize configuration manager.
 
         Args:
             config_dir: Directory to store config files. Defaults to user's home config directory.
+            state_dir: Directory to store state files (logs). Defaults to XDG_STATE_HOME or ~/.local/state.
         """
         if config_dir is None:
             # Use user-specific config directory
@@ -52,7 +53,16 @@ class ConfigManager:
             else:  # Unix-like systems
                 config_dir = os.path.expanduser("~/.config/smbreplay")
 
+        # Determine XDG_STATE_HOME for logs/state
+        if state_dir is None:
+            xdg_state_home = os.environ.get("XDG_STATE_HOME")
+            if xdg_state_home:
+                state_dir = os.path.join(os.path.expanduser(xdg_state_home), "smbreplay")
+            else:
+                state_dir = os.path.expanduser("~/.local/state/smbreplay")
+
         self.config_dir = config_dir
+        self.state_dir = state_dir
         self.config_file = os.path.join(self.config_dir, "config.pkl")
 
         # Initialize configurations
@@ -73,17 +83,24 @@ class ConfigManager:
         self._config_loaded = False
         self._logger = None
         self._dirs_created = False
+        self._state_dirs_created = False
 
         # Initialize other globals
         self.operations: List[dict] = []
         self.all_cells_run = False
 
     def _ensure_dirs_created(self):
-        """Ensure directories are created (lazy initialization)."""
+        """Ensure config and traces directories are created (lazy initialization)."""
         if not self._dirs_created:
             os.makedirs(self.config_dir, exist_ok=True)
             os.makedirs(self.traces_folder, exist_ok=True)
             self._dirs_created = True
+
+    def _ensure_state_dirs_created(self):
+        """Ensure state (log) directory is created (lazy initialization)."""
+        if not self._state_dirs_created:
+            os.makedirs(self.state_dir, exist_ok=True)
+            self._state_dirs_created = True
 
     def _ensure_config_loaded(self):
         """Ensure configuration is loaded (lazy initialization)."""
@@ -169,9 +186,9 @@ class ConfigManager:
         stream_handler.addFilter(BrokenPipeFilter())
         logger.addHandler(stream_handler)
 
-        # File handler for persistent logs (create dirs only when needed)
-        self._ensure_dirs_created()
-        log_file = os.path.join(self.config_dir, "smbreplay.log")
+        # File handler for persistent logs (create state dirs only when needed)
+        self._ensure_state_dirs_created()
+        log_file = os.path.join(self.state_dir, "smbreplay.log")
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(
             logging.Formatter(
