@@ -1,13 +1,31 @@
 # SMB2 Replay System
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/SuperJT/smb2-replay/releases/tag/v1.0.0)
-[![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+<!-- Badges are not supported for Bitbucket Server. Remove or replace as needed. -->
+...existing code...
 
 A comprehensive system to capture, store, and replay SMB2 (Server Message Block version 2) network traffic for diagnostic, testing, and protocol analysis purposes in a controlled lab environment.
 
-**Repository**: https://github.com/SuperJT/smb2-replay  
+
+
+**Repository**: https://bitbucket.ngage.netapp.com/users/jtownsen/repos/smbreplay/browse  
 **Release**: [v1.0.0](RELEASE_NOTES_1.0.0.md) - Production Ready
+
+---
+
+## Installing from Bitbucket
+
+To install or clone this repository, you must have access to the Bitbucket server. If your organization requires a personal access token (PAT), use it in place of your password when prompted.
+
+### Clone with HTTPS and Personal Access Token
+
+```bash
+git clone https://<username>:<bitbucket-token>@bitbucket.ngage.netapp.com/users/jtownsen/repos/smbreplay.git
+cd smbreplay
+```
+
+Replace `<username>` with your Bitbucket username and `<bitbucket-token>` with your personal access token. If you have 2FA enabled, a token is required.
+
+---
 
 ## Project Overview
 
@@ -21,11 +39,6 @@ Develop a system to capture, store, and replay SMB2 network traffic for diagnost
 - **Analysis**: Python package with CLI and programmatic interfaces for automation
 - **Development**: Modular design with separate components for different functionalities
 
-### Lab Server Configuration
-- **IP**: 10.216.29.241 (configurable)
-- **Domain**: nas-deep.local (configurable)
-- **Username**: jtownsen (configurable)
-- **Share**: 2pm (configurable)
 
 Configuration is managed through the Python package's user-specific configuration system stored in `~/.config/smbreplay/config.pkl` on Linux/macOS or `%LOCALAPPDATA%\smbreplay\config.pkl` on Windows. This ensures each user can maintain their own private credentials and settings.
 
@@ -44,10 +57,11 @@ For detailed installation instructions, see [INSTALLATION.md](INSTALLATION.md).
 
 ### Quick Installation
 
+
 **Option 1: Interactive Installation (Recommended)**
 ```bash
-git clone https://github.com/SuperJT/smb2-replay.git
-cd smb2-replay
+git clone https://<username>:<bitbucket-token>@bitbucket.ngage.netapp.com/users/jtownsen/repos/smbreplay.git
+cd smbreplay
 python3 -m venv venv --copies
 source venv/bin/activate
 python install.py  # Interactive installer
@@ -66,8 +80,8 @@ python install.py  # Interactive installer
 
 2. **Clone and install**:
    ```bash
-   git clone https://github.com/SuperJT/smb2-replay.git
-   cd smb2-replay
+   git clone https://<username>:<bitbucket-token>@bitbucket.ngage.netapp.com/users/jtownsen/repos/smbreplay.git
+   cd smbreplay
    python3 -m venv venv --copies
    source venv/bin/activate
    
