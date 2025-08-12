@@ -13,6 +13,13 @@
       "description": "Systematic code formatting project for the SMBReplay codebase. This project will handle formatting all Python files in the smbreplay package, testing each file after formatting to ensure functionality is preserved, and providing a structured approach to avoid the formatting failures encountered previously.",
       "createdAt": "2025-07-23T23:17:57.167Z",
       "updatedAt": "2025-07-23T23:17:57.167Z"
+    },
+    {
+      "id": "a0a6414b-605a-4b81-8c58-37b6012aa396",
+      "name": "Increase Test Coverage for smbreplay",
+      "description": "Systematically increase test coverage for the smbreplay project by identifying low-coverage files, writing new tests, and integrating coverage checks.",
+      "createdAt": "2025-07-24T02:30:44.475Z",
+      "updatedAt": "2025-07-24T02:30:44.475Z"
     }
   ],
   "tasks": [
@@ -436,6 +443,83 @@
         "validation"
       ],
       "level": 1
+    },
+    {
+      "id": "349580ea-4b77-4f37-9b2e-46ad6b63f1b4",
+      "name": "Increase coverage for ingestion.py",
+      "details": "Analyze smbreplay_package/smbreplay/ingestion.py, identify untested code, and write new tests to improve coverage from 8%.",
+      "projectId": "a0a6414b-605a-4b81-8c58-37b6012aa396",
+      "completed": true,
+      "createdAt": "2025-07-24T02:30:49.894Z",
+      "updatedAt": "2025-07-24T02:35:44.035Z",
+      "dependsOn": [],
+      "priority": 10,
+      "complexity": 8,
+      "status": "done",
+      "tags": [],
+      "level": 0,
+      "actualHours": 0.5
+    },
+    {
+      "id": "173369df-e0dd-4472-9c4e-f08347d4a685",
+      "name": "Increase coverage for tshark_processor.py",
+      "details": "Analyze smbreplay_package/smbreplay/tshark_processor.py, identify untested code, and write new tests to improve coverage from 13%.",
+      "projectId": "a0a6414b-605a-4b81-8c58-37b6012aa396",
+      "completed": true,
+      "createdAt": "2025-07-24T02:30:49.960Z",
+      "updatedAt": "2025-07-24T02:45:03.134Z",
+      "dependsOn": [],
+      "priority": 9,
+      "complexity": 7,
+      "status": "done",
+      "tags": [],
+      "level": 0,
+      "actualHours": 1
+    },
+    {
+      "id": "d8b54907-6f53-4855-a7b2-5bbe4d0bc886",
+      "name": "Increase coverage for utils.py",
+      "details": "Analyze smbreplay_package/smbreplay/utils.py, identify untested code, and write new tests to improve coverage from 20%.",
+      "projectId": "a0a6414b-605a-4b81-8c58-37b6012aa396",
+      "completed": true,
+      "createdAt": "2025-07-24T02:30:50.020Z",
+      "updatedAt": "2025-07-24T02:54:47.168Z",
+      "dependsOn": [],
+      "priority": 8,
+      "complexity": 6,
+      "status": "done",
+      "tags": [],
+      "level": 0
+    },
+    {
+      "id": "11809cab-e924-4fea-ba6d-fb9f535d1bf4",
+      "name": "Increase coverage for handlers/",
+      "details": "Systematically improve test coverage for all handler modules in smbreplay_package/smbreplay/handlers/ with <25% coverage.",
+      "projectId": "a0a6414b-605a-4b81-8c58-37b6012aa396",
+      "completed": false,
+      "createdAt": "2025-07-24T02:30:50.103Z",
+      "updatedAt": "2025-07-24T02:30:50.103Z",
+      "dependsOn": [],
+      "priority": 7,
+      "complexity": 7,
+      "status": "pending",
+      "tags": [],
+      "level": 0
+    },
+    {
+      "id": "5b6aac0d-52e2-4208-8b39-2a876f744dfc",
+      "name": "Integrate coverage checks into CI/CD",
+      "details": "Add coverage threshold checks to the CI/CD pipeline to prevent regressions and ensure minimum coverage is maintained.",
+      "projectId": "a0a6414b-605a-4b81-8c58-37b6012aa396",
+      "completed": false,
+      "createdAt": "2025-07-24T02:30:50.173Z",
+      "updatedAt": "2025-07-24T02:30:50.173Z",
+      "dependsOn": [],
+      "priority": 6,
+      "complexity": 5,
+      "status": "pending",
+      "tags": [],
+      "level": 0
     }
   ],
   "subtasks": [],
