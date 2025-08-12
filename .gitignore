@@ -62,5 +62,10 @@ evidence/
 .cache/
 .pytest_cache/smb2_fields.txt
 
+# Test coverage files
+.coverage
+htmlcov/
+coverage.xml
+
 # Backup files from formatting
 *.backup
