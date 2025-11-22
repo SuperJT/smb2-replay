@@ -88,7 +88,9 @@ def handle_broken_pipe():
     """Handle broken pipe errors gracefully."""
     # Set up signal handler for SIGPIPE to default behavior
     # This prevents Python from raising BrokenPipeError for SIGPIPE
-    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+    # SIGPIPE is not available on Windows, so we need to check for it
+    if hasattr(signal, 'SIGPIPE'):
+        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 
 def safe_print(*args, **kwargs):

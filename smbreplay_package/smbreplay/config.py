@@ -76,7 +76,7 @@ class ConfigManager:
 
         # Session management
         self.current_session_id: Optional[str] = None
-        self.current_case_id: Optional[str] = None
+        self.current_case_id: Optional[str] = os.environ.get("DEFAULT_CASE_ID", "2010101010")
         self.current_trace_name: Optional[str] = None
 
         # Lazy initialization flags
@@ -294,6 +294,36 @@ class ConfigManager:
         self.current_case_id = case_id
         self.save_config()
         self.logger.info(f"Set case ID to {case_id}")
+
+    def validate_case_directory(self, case_id: Optional[str] = None) -> bool:
+        """
+        Validate and create the case directory if needed.
+
+        Args:
+            case_id: Specific case ID to validate. Defaults to current or '2010101010'.
+
+        Returns:
+            True if directory is valid and writable, False otherwise.
+        """
+        case_id = case_id or self.current_case_id or "2010101010"
+        path = os.path.join(self.traces_folder, case_id)
+
+        self._ensure_dirs_created()  # Ensure traces_folder exists
+
+        if not os.path.exists(path):
+            try:
+                os.makedirs(path, exist_ok=True)
+                self.logger.info(f"Created case directory: {path}")
+            except OSError as e:
+                self.logger.error(f"Failed to create {path}: {e}")
+                return False
+
+        if os.access(path, os.W_OK | os.R_OK):
+            self.logger.info(f"Case directory validated: {path}")
+            return True
+        else:
+            self.logger.error(f"Case directory not accessible: {path}")
+            return False
 
     def get_case_id(self) -> Optional[str]:
         """Get the current case ID."""

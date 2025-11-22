@@ -7,8 +7,15 @@ Applies file locks using smbprotocol Open object.
 """
 import logging
 from smbprotocol.exceptions import SMBException
-from smbprotocol.open import SMB2LockElement
 from typing import Any, Dict
+
+# Try to import SMB2LockElement - only available in GitHub version
+try:
+    from smbprotocol.open import SMB2LockElement
+    LOCK_SUPPORT_AVAILABLE = True
+except ImportError:
+    LOCK_SUPPORT_AVAILABLE = False
+    SMB2LockElement = None
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +28,13 @@ def handle_lock(replayer, op: Dict[str, Any], **kwargs):
         op: Operation dictionary containing lock parameters
         **kwargs: Additional context
     """
+    if not LOCK_SUPPORT_AVAILABLE:
+        replayer.logger.warning(
+            "Lock operations require smbprotocol from GitHub. "
+            "Install with: pip install --upgrade git+https://github.com/jborean93/smbprotocol.git"
+        )
+        return
+
     original_fid = op.get("smb2.fid", "")
     file_open = replayer.fid_mapping.get(original_fid)
 
