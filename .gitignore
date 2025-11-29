@@ -70,3 +70,4 @@ coverage.xml
 
 # Backup files from formatting
 *.backup
+node_modules/
