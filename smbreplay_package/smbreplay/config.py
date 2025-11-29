@@ -14,6 +14,7 @@ DEFAULT_PCAP_CONFIG = {"capture_path": None, "verbose_level": 0}  # Default to C
 
 DEFAULT_REPLAY_CONFIG = {
     "server_ip": "127.0.0.1",
+    "port": 445,
     "domain": "",
     "username": "testuser",
     "password": "PASSWORD",
@@ -355,6 +356,24 @@ class ConfigManager:
         self.replay_config["server_ip"] = server_ip
         self.save_config()
         self.logger.info(f"Set server IP to {server_ip}")
+
+    def get_port(self) -> int:
+        """Get the replay server port."""
+        self._ensure_config_loaded()
+        value = self.replay_config.get("port", 445)
+        if isinstance(value, (int, float, str)):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return 445
+        return 445
+
+    def set_port(self, port: int) -> None:
+        """Set the replay server port."""
+        self._ensure_config_loaded()
+        self.replay_config["port"] = port
+        self.save_config()
+        self.logger.info(f"Set port to {port}")
 
     def get_domain(self) -> str:
         """Get the replay server domain."""

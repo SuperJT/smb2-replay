@@ -802,6 +802,7 @@ class SMB2Replayer:
         self.config._load_config()  # Force reload from disk
         replay_config = self.get_replay_config()
         server_ip = replay_config.get("server_ip", "127.0.0.1")
+        port = int(replay_config.get("port", 445))
         domain = replay_config.get("domain", "")
         username = replay_config.get("username", "testuser")
         password = replay_config.get("password", "PASSWORD")
@@ -809,7 +810,7 @@ class SMB2Replayer:
         max_wait = replay_config.get("max_wait", 5.0)
 
         logger.debug(
-            f"Using replay config: server_ip={server_ip}, domain={domain}, "
+            f"Using replay config: server_ip={server_ip}, port={port}, domain={domain}, "
             f"username={username}, tree_name={default_tree_name}, max_wait={max_wait}"
         )
 
@@ -817,8 +818,8 @@ class SMB2Replayer:
             # --- Pre-trace setup: use a temporary connection/session/tree ---
             if status_callback:
                 status_callback("Setting up pre-trace state...")
-            logger.debug(f"Connecting to SMB server for pre-trace: {server_ip}")
-            pre_connection = Connection(uuid.uuid4(), server_ip, 445)
+            logger.debug(f"Connecting to SMB server for pre-trace: {server_ip}:{port}")
+            pre_connection = Connection(uuid.uuid4(), server_ip, port)
             pre_connection.connect(timeout=max_wait)
             pre_session = Session(
                 pre_connection, username, password, require_encryption=False
@@ -832,8 +833,8 @@ class SMB2Replayer:
             # --- Main replay: use a fresh connection/session/tree ---
             if status_callback:
                 status_callback("Connecting to SMB server...")
-            logger.debug(f"Connecting to SMB server: {server_ip}")
-            connection = Connection(uuid.uuid4(), server_ip, 445)
+            logger.debug(f"Connecting to SMB server: {server_ip}:{port}")
+            connection = Connection(uuid.uuid4(), server_ip, port)
             connection.connect(timeout=max_wait)
             session = Session(connection, username, password, require_encryption=False)
             session.connect()

@@ -101,15 +101,52 @@ python install.py  # Interactive installer
 ### Quick Start
 
 1. **Set up trace directory** (optional):
-   ```bash 
+   ```bash
    export TRACES_FOLDER="~/cases"  # Default location
    mkdir -p "$TRACES_FOLDER"
    ```
 
 2. **Activate the environment**:
    ```bash
-   source activate_env.sh
+   source venv/bin/activate
    ```
+
+### Testing with a Local SMB Server (Docker)
+
+For quick testing without a production SMB server:
+
+```bash
+# 1. Start a test SMB container (uses port 1445 to avoid conflicts)
+docker run -d --name smb-test \
+  -p 1445:445 \
+  -v /tmp/smb-share:/share \
+  dperson/samba \
+  -u "testuser;testpass" \
+  -s "testshare;/share;yes;no;no;testuser;testuser;testuser" \
+  -p
+
+# 2. Configure smbreplay for the test server
+smbreplay config set server_ip 127.0.0.1
+smbreplay config set port 1445
+smbreplay config set username testuser
+smbreplay config set password testpass
+smbreplay config set tree_name testshare
+
+# 3. Verify configuration
+smbreplay config show
+
+# 4. Test the full workflow
+smbreplay list traces --case test-data
+smbreplay ingest --trace small/smb-on-windows-10.pcapng
+smbreplay session --list
+smbreplay replay <session_id>
+
+# 5. Verify files were created
+smbclient //127.0.0.1/testshare -p 1445 -U testuser%testpass -c 'ls'
+
+# 6. Clean up when done
+docker stop smb-test && docker rm smb-test
+```
 
 ### Development Tools (Optional)
 
@@ -232,12 +269,32 @@ smbreplay replay 0x7602000009fbdaa3
 smbreplay config show
 ```
 
+Example output:
+```
+Current Configuration:
+  Traces folder: /home/user/cases
+  Capture path: /home/user/cases/2010101010/capture.pcap
+  Verbosity level: 0
+  Session ID: 0x000000002a16df11
+  Case ID: 2010101010
+  Trace name: capture.pcap
+  Server IP: 192.168.1.100
+  Port: 445
+  Domain:
+  Username: testuser
+  Password: ***
+  Tree name: testshare
+  Max wait: 5.0
+```
+
 #### Set Server Configuration
 ```bash
 # Set target server details
 smbreplay config set server_ip 192.168.1.100
+smbreplay config set port 445              # Custom port (default: 445)
 smbreplay config set domain your-domain.local
 smbreplay config set username your-username
+smbreplay config set password your-password
 smbreplay config set tree_name your-share-name
 ```
 
@@ -247,6 +304,19 @@ smbreplay config set tree_name your-share-name
 smbreplay config set case_id 2010101010
 smbreplay config set traces_folder ~/cases
 ```
+
+#### Available Configuration Keys
+| Key | Description | Default |
+|-----|-------------|---------|
+| `server_ip` | Target SMB server IP address | `127.0.0.1` |
+| `port` | Target SMB server port | `445` |
+| `domain` | SMB domain (optional) | `` |
+| `username` | SMB authentication username | `testuser` |
+| `password` | SMB authentication password | `PASSWORD` |
+| `tree_name` | SMB share name to connect to | `testshare` |
+| `max_wait` | Connection timeout in seconds | `5.0` |
+| `case_id` | Current case identifier | `2010101010` |
+| `traces_folder` | Root folder for PCAP files | `~/cases` |
 
 ### Command Reference
 
@@ -287,10 +357,79 @@ smbreplay config set traces_folder ~/cases
 
 ### Troubleshooting
 
-- **"No configuration found"**: Run `smbreplay config show` and set required values
-- **"No sessions found"**: Ensure PCAP file was ingested successfully
-- **"Connection failed"**: Check server configuration and network connectivity
-- **"File not found"**: Verify PCAP file path and use quotes for spaces
+#### Common Issues
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| "No configuration found" | First-time setup | Run `smbreplay config show` and set required values |
+| "No sessions found" | PCAP not ingested | Run `smbreplay ingest --trace <file>` first |
+| "Connection failed" | Server unreachable | Check `server_ip`, `port`, and network connectivity |
+| "File not found" | Invalid path | Use quotes for paths with spaces: `--trace "My File.pcap"` |
+| "Permission denied" on `.tracer/` | Directory owned by root | Fix ownership: `sudo chown -R $USER:$USER ~/cases` |
+
+#### Port 445 Already in Use (WSL2/Windows)
+
+On Windows or WSL2, port 445 is typically used by the Windows SMB service. To test against a local Docker container:
+
+```bash
+# Run SMB container on alternate port
+docker run -d --name smb-test \
+  -p 1445:445 \
+  -v /tmp/smb-share:/share \
+  dperson/samba \
+  -u "testuser;testpass" \
+  -s "testshare;/share;yes;no;no;testuser;testuser;testuser" \
+  -p
+
+# Configure smbreplay to use the alternate port
+smbreplay config set port 1445
+smbreplay config set server_ip 127.0.0.1
+smbreplay config set username testuser
+smbreplay config set password testpass
+smbreplay config set tree_name testshare
+
+# Verify connectivity
+smbclient -L //127.0.0.1 -p 1445 -U testuser%testpass
+```
+
+#### Virtual Environment Issues
+
+If you encounter "bad interpreter" errors after moving the project:
+
+```bash
+# Recreate the virtual environment
+rm -rf venv
+python3 -m venv venv --copies
+source venv/bin/activate
+pip install -e smbreplay_package/
+```
+
+The `--copies` flag ensures Python binaries are copied rather than symlinked, which improves portability.
+
+#### Permission Issues with `.tracer` Directories
+
+If ingestion fails with "Permission denied" on `.tracer` directories:
+
+```bash
+# Check ownership
+ls -la ~/cases/<case_id>/.tracer/
+
+# Fix ownership if needed
+sudo chown -R $USER:$USER ~/cases/<case_id>/.tracer/
+
+# Or use a different case directory you own
+smbreplay config set case_id my-test-case
+```
+
+#### Debugging with Verbose Output
+
+Add `-v` flags for more detailed output:
+
+```bash
+smbreplay -v replay <session_id>      # INFO level
+smbreplay -vv replay <session_id>     # DEBUG level
+smbreplay -vvv replay <session_id>    # Maximum verbosity
+```
 
 ## Development and Project Management
 

@@ -633,12 +633,13 @@ class SMB2ReplaySystem:
         # Get replay configuration
         replay_config = self.config.replay_config.copy()
         server_ip = replay_config.get("server_ip", "127.0.0.1")
+        port = int(replay_config.get("port", 445))
         username = replay_config.get("username", "testuser")
         password = replay_config.get("password", "PASSWORD")
         tree_name = replay_config.get("tree_name", "testshare")
 
         if dry_run:
-            safe_print(f"DRY RUN: Would connect to {server_ip} as {username}")
+            safe_print(f"DRY RUN: Would connect to {server_ip}:{port} as {username}")
             safe_print(f"DRY RUN: Would use tree: {tree_name}")
         else:
             safe_print(f"Connecting to {server_ip} as {username}...")
@@ -654,7 +655,7 @@ class SMB2ReplaySystem:
                 from smbprotocol.tree import TreeConnect
 
                 # Setup connection
-                connection = Connection(uuid.uuid4(), server_ip, 445)
+                connection = Connection(uuid.uuid4(), server_ip, port)
                 connection.connect(timeout=5.0)
                 session = Session(
                     connection, username, password, require_encryption=False
@@ -1313,6 +1314,7 @@ def handle_config_command(args, config):
                 "case_id": config.get_case_id(),
                 "trace_name": trace_name,
                 "server_ip": config.get_server_ip(),
+                "port": config.get_port(),
                 "domain": config.get_domain(),
                 "username": config.get_username(),
                 "password": (
@@ -1337,6 +1339,7 @@ def handle_config_command(args, config):
             safe_print(f"  Case ID: {config.get_case_id() or 'Not configured'}")
             safe_print(f"  Trace name: {trace_name or 'Not configured'}")
             safe_print(f"  Server IP: {config.get_server_ip()}")
+            safe_print(f"  Port: {config.get_port()}")
             safe_print(f"  Domain: {config.get_domain()}")
             safe_print(f"  Username: {config.get_username()}")
             safe_print(
@@ -1371,6 +1374,13 @@ def handle_config_command(args, config):
         elif args.key == "server_ip":
             config.set_server_ip(args.value)
             safe_print(f"Set server_ip to: {args.value}")
+        elif args.key == "port":
+            try:
+                port = int(args.value)
+                config.set_port(port)
+                safe_print(f"Set port to: {port}")
+            except ValueError:
+                safe_print(f"Error: port must be a number")
         elif args.key == "domain":
             config.set_domain(args.value)
             safe_print(f"Set domain to: {args.value}")
@@ -1411,6 +1421,8 @@ def handle_config_command(args, config):
             safe_print(config.get_trace_name() or "")
         elif args.key == "server_ip":
             safe_print(config.get_server_ip())
+        elif args.key == "port":
+            safe_print(config.get_port())
         elif args.key == "domain":
             safe_print(config.get_domain())
         elif args.key == "username":
