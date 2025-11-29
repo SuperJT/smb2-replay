@@ -475,6 +475,98 @@ python -m pytest smbreplay_package/smbreplay/  # Core package tests
 python -m pytest utils/tests/                  # Utility tests
 ```
 
+## REST API and TypeScript SDK
+
+For programmatic access and Next.js integration, smbreplay provides a REST API and TypeScript SDK.
+
+### REST API
+
+The FastAPI-based REST API wraps the SMB2ReplaySystem for HTTP access:
+
+```bash
+# Install API dependencies
+pip install -r requirements-api.txt
+
+# Run the API server
+uvicorn api.main:app --host 0.0.0.0 --port 3004
+```
+
+**API Endpoints:**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/info` | GET | System information |
+| `/api/config` | GET/PUT | Configuration management |
+| `/api/traces` | GET | List trace files |
+| `/api/traces/ingest` | POST | Ingest PCAP file |
+| `/api/sessions` | GET | List sessions |
+| `/api/sessions/{id}` | GET | Get session operations |
+| `/api/replay/validate` | POST | Validate replay readiness |
+| `/api/replay/setup` | POST | Setup infrastructure |
+| `/api/replay/execute` | POST | Execute replay |
+
+Interactive API documentation available at `/docs` (Swagger) or `/redoc`.
+
+### TypeScript SDK
+
+Type-safe client for Next.js and Node.js applications:
+
+```bash
+cd sdk
+npm install
+npm run build
+```
+
+**Usage:**
+```typescript
+import { SMBReplayClient } from '@smbreplay/sdk';
+
+const client = new SMBReplayClient({ baseUrl: 'http://localhost:3004' });
+
+// Health check
+const health = await client.healthCheck();
+
+// List sessions
+const sessions = await client.listSessions();
+
+// Execute replay
+const result = await client.executeReplay('0x1234567890abcdef', {
+  server_ip: '192.168.1.100',
+  validate_first: true,
+});
+```
+
+### Docker Deployment
+
+Build and run the API in Docker:
+
+```bash
+# Build the image
+docker build -t smbreplay-api .
+
+# Run the container
+docker run -d \
+  -p 3004:3004 \
+  -v ~/cases:/stingray:ro \
+  -e TRACES_FOLDER=/stingray \
+  smbreplay-api
+```
+
+For integration with the tracer docker-compose, see `docker-compose.smbreplay.yml`.
+
+### Running Tests
+
+```bash
+# Python API tests
+pip install pytest pytest-asyncio httpx
+pytest api/tests/
+
+# TypeScript SDK tests
+cd sdk
+npm install
+npm test
+```
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
