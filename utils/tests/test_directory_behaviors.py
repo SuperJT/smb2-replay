@@ -16,8 +16,8 @@ from smbprotocol.open import (
 
 # Configuration (can be set via environment variables for flexibility)
 SERVER_IP = os.environ.get("SMB_SERVER_IP", "127.0.0.1")
-USERNAME = os.environ.get("SMB_USERNAME", "jtownsen")
-PASSWORD = os.environ.get("SMB_PASSWORD", "P@ssw0rd")
+USERNAME = os.environ.get("SMB_USERNAME", "testuser")
+PASSWORD = os.environ.get("SMB_PASSWORD", "testpass")
 SHARE_NAME = os.environ.get("SMB_SHARE", "testshare")
 
 @pytest.fixture(scope="module")

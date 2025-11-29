@@ -108,8 +108,8 @@ def setup_file_system_state(analysis: Dict[str, Any], dry_run: bool = False) -> 
     
     server_ip = replay_config.get("server_ip", "127.0.0.1")
     domain = replay_config.get("domain", "")
-    username = replay_config.get("username", "jtownsen")
-    password = replay_config.get("password", "P@ssw0rd")
+    username = replay_config.get("username", "testuser")
+    password = replay_config.get("password", "testpass")
     tree_name = replay_config.get("tree_name", "testshare")
     
     print(f"Setting up file system state for replay...")

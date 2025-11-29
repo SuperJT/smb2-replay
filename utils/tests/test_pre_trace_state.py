@@ -24,8 +24,8 @@ def test_pre_trace_state():
     
     # Configuration
     server_ip = "127.0.0.1"
-    username = "jtownsen"
-    password = "P@ssw0rd"
+    username = os.environ.get("SMB_USERNAME", "testuser")
+    password = os.environ.get("SMB_PASSWORD", "testpass")
     share_name = "testshare"
     
     # Sample operations that would trigger pre-trace state setup

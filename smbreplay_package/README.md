@@ -16,11 +16,11 @@ Develop a system to capture, store, and replay SMB2 network traffic for diagnost
 - **Analysis**: Python package with CLI and programmatic interfaces for automation
 - **Development**: Modular design with separate components for different functionalities
 
-### Lab Server Configuration
-- **IP**: 10.216.29.241 (configurable)
-- **Domain**: nas-deep.local (configurable)
-- **Username**: jtownsen (configurable)
-- **Share**: 2pm (configurable)
+### Server Configuration
+- **IP**: 192.168.1.100 (configurable)
+- **Domain**: example.local (configurable)
+- **Username**: testuser (configurable)
+- **Share**: testshare (configurable)
 
 Configuration is managed through the Python package's user-specific configuration system stored in `~/.config/smbreplay/config.pkl` on Linux/macOS or `%LOCALAPPDATA%\smbreplay\config.pkl` on Windows. This ensures each user can maintain their own private credentials and settings.
 

@@ -62,8 +62,8 @@ def test_replay_connection():
         from smbprotocol.session import Session
         
         # Use configured credentials
-        username = replay_config.get("username", "jtownsen")
-        password = replay_config.get("password", "P@ssw0rd")
+        username = replay_config.get("username", "testuser")
+        password = replay_config.get("password", "testpass")
         
         session = Session(connection, username, password, require_encryption=False)
         session.connect()

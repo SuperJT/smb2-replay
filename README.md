@@ -1,30 +1,12 @@
 # SMB2 Replay System
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://bitbucket.ngage.netapp.com/users/jtownsen/repos/smbreplay/browse?at=refs%2Ftags%2Fv1.0.0)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/SuperJT/smb2-replay/releases/tag/v1.0.0)
 [![Python](https://img.shields.io/badge/python-3.12+-green.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 A comprehensive system to capture, store, and replay SMB2 (Server Message Block version 2) network traffic for diagnostic, testing, and protocol analysis purposes in a controlled lab environment.
 
-
-
-**Repository**: https://bitbucket.ngage.netapp.com/users/jtownsen/repos/smbreplay/browse  
 **Release**: [v1.0.0](RELEASE_NOTES_1.0.0.md) - Production Ready
-
----
-
-## Installing from Bitbucket
-
-To install or clone this repository, you must have access to the Bitbucket server. If your organization requires a personal access token (PAT), use it in place of your password when prompted.
-
-### Clone with HTTPS and Personal Access Token
-
-```bash
-git clone https://<username>:<bitbucket-token>@bitbucket.ngage.netapp.com/users/jtownsen/repos/smbreplay.git
-cd smbreplay
-```
-
-Replace `<username>` with your Bitbucket username and `<bitbucket-token>` with your personal access token. If you have 2FA enabled, a token is required.
 
 ---
 
@@ -61,8 +43,8 @@ For detailed installation instructions, see [INSTALLATION.md](INSTALLATION.md).
 
 **Option 1: Interactive Installation (Recommended)**
 ```bash
-git clone https://<username>:<bitbucket-token>@bitbucket.ngage.netapp.com/users/jtownsen/repos/smbreplay.git
-cd smbreplay
+git clone https://github.com/SuperJT/smb2-replay.git
+cd smb2-replay
 python3 -m venv venv --copies
 source venv/bin/activate
 python install.py  # Interactive installer
@@ -81,8 +63,8 @@ python install.py  # Interactive installer
 
 2. **Clone and install**:
    ```bash
-   git clone https://<username>:<bitbucket-token>@bitbucket.ngage.netapp.com/users/jtownsen/repos/smbreplay.git
-   cd smbreplay
+   git clone https://github.com/SuperJT/smb2-replay.git
+   cd smb2-replay
    python3 -m venv venv --copies
    source venv/bin/activate
    

@@ -24,8 +24,8 @@ def test_directory_vs_file():
     
     # Configuration
     server_ip = "127.0.0.1"
-    username = "jtownsen"
-    password = "P@ssw0rd"
+    username = os.environ.get("SMB_USERNAME", "testuser")
+    password = os.environ.get("SMB_PASSWORD", "testpass")
     share_name = "testshare"
     
     try:

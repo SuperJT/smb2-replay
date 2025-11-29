@@ -32,7 +32,9 @@ def main():
     
     # Step 2: SMB replay imports
     print("\n2. SMB replay imports:")
-    sys.path.insert(0, '/home/jtownsen/bin/smbreplay/smbreplay_package')
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    package_dir = os.path.join(script_dir, '..', '..', 'smbreplay_package')
+    sys.path.insert(0, package_dir)
     
     benchmark_import("smbreplay.config")
     

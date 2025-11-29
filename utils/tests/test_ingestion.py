@@ -6,7 +6,7 @@ from smbreplay import ingestion
 # Test configuration
 CASE_NUMBER = "2009420420"
 TRACE_NAME = "scoa_replay_freshvol"
-TRACES_FOLDER = "/Users/jtownsen/cases"
+TRACES_FOLDER = os.environ.get("TRACES_FOLDER", os.path.expanduser("~/cases"))
 CAPTURE_PATH = os.path.join(TRACES_FOLDER, CASE_NUMBER, f"{TRACE_NAME}.pcapng")
 
 def test_run_ingestion_and_load():

@@ -244,9 +244,10 @@ def main():
             session_parquet_path = f"smb2_session_{session_id}.parquet"
             
             # Look for the full parquet file in common locations
+            cases_dir = os.environ.get("TRACES_FOLDER", os.path.expanduser("~/cases"))
             possible_paths = [
-                f"/home/jtownsen/cases/*/sessions/tshark_output_full.parquet",
-                f"/home/jtownsen/cases/*/.tracer/*/sessions/tshark_output_full.parquet"
+                f"{cases_dir}/*/sessions/tshark_output_full.parquet",
+                f"{cases_dir}/*/.tracer/*/sessions/tshark_output_full.parquet"
             ]
             
             parquet_path = None

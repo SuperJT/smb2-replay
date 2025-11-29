@@ -33,7 +33,7 @@ def test_get_share_relative_path_unc():
     """Test get_share_relative_path with UNC path."""
     # Create a mock object to call the method on
     mock_obj = type('MockObj', (), {})()
-    result = get_share_relative_path(mock_obj, "10.216.29.169\\share\\dir\\file.txt")
+    result = get_share_relative_path(mock_obj, "192.168.1.100\\share\\dir\\file.txt")
     assert result == "dir\\file.txt"
 
 
@@ -47,7 +47,7 @@ def test_get_share_relative_path_share_name():
 def test_get_share_relative_path_forward_slashes():
     """Test get_share_relative_path with forward slashes."""
     mock_obj = type('MockObj', (), {})()
-    result = get_share_relative_path(mock_obj, r"10.216.29.169/share/dir/file.txt")
+    result = get_share_relative_path(mock_obj, r"192.168.1.100/share/dir/file.txt")
     assert result == r"dir\file.txt"  # Function uses backslashes in output
 
 

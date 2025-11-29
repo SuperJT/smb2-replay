@@ -8,8 +8,10 @@ import os
 import time
 import importlib.util
 
-# Add the current directory to the Python path
-sys.path.insert(0, '/home/jtownsen/bin/smbreplay/smbreplay_package')
+# Add the smbreplay package to the Python path
+script_dir = os.path.dirname(os.path.abspath(__file__))
+package_dir = os.path.join(script_dir, '..', '..', 'smbreplay_package')
+sys.path.insert(0, package_dir)
 
 print("=== Import Analysis ===")
 
@@ -48,7 +50,7 @@ else:
 
 # Step 3: Check if it's the file itself
 print("\n3. Testing file operations...")
-config_path = "/home/jtownsen/bin/smbreplay/smbreplay_package/smbreplay/config.py"
+config_path = os.path.join(package_dir, "smbreplay", "config.py")
 start = time.time()
 exists = os.path.exists(config_path)
 end = time.time()

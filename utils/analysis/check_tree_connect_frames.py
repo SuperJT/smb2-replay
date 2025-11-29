@@ -64,8 +64,13 @@ def main():
     # Tree Connect frames from tshark output
     tree_connect_frames = [8434, 8453, 27202, 27203]
     
+    # Base path from environment or default
+    cases_dir = os.environ.get("TRACES_FOLDER", os.path.expanduser("~/cases"))
+    case_id = os.environ.get("CASE_ID", "2010101010")
+    trace_name = os.environ.get("TRACE_NAME", "trace")
+
     # Check in full parquet file
-    full_parquet = "/home/jtownsen/cases/2010101010/.tracer/tokyo-client/sessions/tshark_output_full.parquet"
+    full_parquet = os.path.join(cases_dir, case_id, ".tracer", trace_name, "sessions", "tshark_output_full.parquet")
     if os.path.exists(full_parquet):
         print("="*80)
         print("CHECKING FULL PARQUET FILE")
@@ -73,9 +78,9 @@ def main():
         check_frames_in_parquet(full_parquet, tree_connect_frames)
     else:
         print(f"Full parquet file not found: {full_parquet}")
-    
+
     # Check in session-specific parquet file (our target session)
-    session_parquet = "/home/jtownsen/cases/2010101010/.tracer/tokyo-client/sessions/smb2_session_0x9dbc000000000006.parquet"
+    session_parquet = os.path.join(cases_dir, case_id, ".tracer", trace_name, "sessions", "smb2_session_0x9dbc000000000006.parquet")
     if os.path.exists(session_parquet):
         print("\n" + "="*80)
         print("CHECKING SESSION-SPECIFIC PARQUET FILE (0x9dbc000000000006)")
@@ -83,9 +88,9 @@ def main():
         check_frames_in_parquet(session_parquet, tree_connect_frames)
     else:
         print(f"Session parquet file not found: {session_parquet}")
-    
+
     # Check in the OTHER session-specific parquet file (the one with Tree Connect frames)
-    other_session_parquet = "/home/jtownsen/cases/2010101010/.tracer/tokyo-client/sessions/smb2_session_0x00012c01c400000d.parquet"
+    other_session_parquet = os.path.join(cases_dir, case_id, ".tracer", trace_name, "sessions", "smb2_session_0x00012c01c400000d.parquet")
     if os.path.exists(other_session_parquet):
         print("\n" + "="*80)
         print("CHECKING OTHER SESSION-SPECIFIC PARQUET FILE (0x00012c01c400000d)")

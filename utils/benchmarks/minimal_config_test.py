@@ -7,8 +7,10 @@ import sys
 import os
 import time
 
-# Add the current directory to the Python path
-sys.path.insert(0, '/home/jtownsen/bin/smbreplay/smbreplay_package')
+# Add the smbreplay package to the Python path
+script_dir = os.path.dirname(os.path.abspath(__file__))
+package_dir = os.path.join(script_dir, '..', '..', 'smbreplay_package')
+sys.path.insert(0, package_dir)
 
 print("=== Minimal Config Import Test ===")
 

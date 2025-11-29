@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Union
 def get_share_relative_path(self, filename: str) -> str:
     """
     Given a filename (possibly a UNC path), return the path relative to the share root.
-    E.g. '10.216.29.169\\share\\dir\\file.txt' -> 'dir\\file.txt'
+    E.g. '192.168.1.100\\share\\dir\\file.txt' -> 'dir\\file.txt'
     Handles both forward and backward slashes.
     """
     # Strip leading slashes first to handle paths like "\file96.txt"

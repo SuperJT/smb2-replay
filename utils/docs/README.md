@@ -192,8 +192,8 @@ For local Samba testing, the configuration should be:
 {
     'server_ip': '127.0.0.1',
     'domain': '',
-    'username': 'jtownsen', 
-    'password': 'P@ssw0rd',
+    'username': 'testuser',
+    'password': 'testpass',
     'tree_name': 'testshare',
     'max_wait': 5.0
 }
