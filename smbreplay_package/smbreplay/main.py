@@ -438,19 +438,20 @@ class SMB2ReplaySystem:
         for op in operations:
             filename = op.get("smb2.filename", "")
             if filename and filename not in [".", "..", "N/A", ""]:
-                all_paths.add(filename)
+                # Strip leading slashes to normalize paths like "\file96.txt"
+                all_paths.add(filename.lstrip("\\/"))
             if (
                 op.get("smb2.cmd") == "5"
                 and op.get("smb2.flags.response") == "True"
                 and op.get("smb2.create.action") == "FILE_CREATED"
             ):
-                created_files.add(filename)
+                created_files.add(filename.lstrip("\\/"))
             elif (
                 op.get("smb2.cmd") == "5"
                 and op.get("smb2.flags.response") == "True"
                 and op.get("smb2.create.action") == "FILE_OPENED"
             ):
-                existing_files.add(filename)
+                existing_files.add(filename.lstrip("\\/"))
 
         if not all_paths:
             return {
@@ -539,8 +540,8 @@ class SMB2ReplaySystem:
             safe_print("ℹ️  No paths to clean up")
             return results
 
-        # Normalize paths
-        normalized_paths = {path.replace("/", "\\") for path in paths if path}
+        # Normalize paths - strip leading slashes and convert to backslashes
+        normalized_paths = {path.replace("/", "\\").lstrip("\\") for path in paths if path}
 
         # Sort paths by depth (deepest first) to delete files before directories
         sorted_paths = sorted(
@@ -676,19 +677,20 @@ class SMB2ReplaySystem:
             for op in operations:
                 filename = op.get("smb2.filename", "")
                 if filename and filename not in [".", "..", "N/A", ""]:
-                    all_paths.add(filename)
+                    # Strip leading slashes to normalize paths like "\file96.txt"
+                    all_paths.add(filename.lstrip("\\/"))
                 if (
                     op.get("smb2.cmd") == "5"
                     and op.get("smb2.flags.response") == "True"
                     and op.get("smb2.create.action") == "FILE_CREATED"
                 ):
-                    created_files.add(filename)
+                    created_files.add(filename.lstrip("\\/"))
                 elif (
                     op.get("smb2.cmd") == "5"
                     and op.get("smb2.flags.response") == "True"
                     and op.get("smb2.create.action") == "FILE_OPENED"
                 ):
-                    existing_files.add(filename)
+                    existing_files.add(filename.lstrip("\\/"))
 
             if not all_paths:
                 safe_print("ℹ️  No file paths to setup")
