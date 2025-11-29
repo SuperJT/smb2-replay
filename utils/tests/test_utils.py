@@ -58,6 +58,20 @@ def test_get_share_relative_path_no_share():
     assert result == "file.txt"  # Function returns just the filename
 
 
+def test_get_share_relative_path_leading_backslash():
+    """Test get_share_relative_path with leading backslash."""
+    mock_obj = type('MockObj', (), {})()
+    result = get_share_relative_path(mock_obj, r"\file96.txt")
+    assert result == "file96.txt"
+
+
+def test_get_share_relative_path_leading_forward_slash():
+    """Test get_share_relative_path with leading forward slash."""
+    mock_obj = type('MockObj', (), {})()
+    result = get_share_relative_path(mock_obj, "/file96.txt")
+    assert result == "file96.txt"
+
+
 def test_format_bytes_basic():
     """Test format_bytes with basic values."""
     assert format_bytes(1024) == "1.0 KB"

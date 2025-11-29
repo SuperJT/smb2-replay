@@ -14,6 +14,8 @@ def get_share_relative_path(self, filename: str) -> str:
     E.g. '10.216.29.169\\share\\dir\\file.txt' -> 'dir\\file.txt'
     Handles both forward and backward slashes.
     """
+    # Strip leading slashes first to handle paths like "\file96.txt"
+    filename = filename.lstrip("\\/")
     parts = re.split(r"[\\/]+", filename)
     # If the first part looks like an IP or hostname, and the second is the share, skip both
     if len(parts) > 2 and (
