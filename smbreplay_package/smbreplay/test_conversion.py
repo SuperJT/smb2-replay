@@ -3,9 +3,7 @@
 Test script to verify the SMB2 Replay System conversion from notebook to Python modules.
 """
 
-import os
 import sys
-import traceback
 
 
 def test_imports():
@@ -13,44 +11,44 @@ def test_imports():
     print("Testing imports...")
 
     # Test individual module imports
-    from smbreplay import config
+    from smbreplay import config  # noqa: F401
 
     print("✓ config module imported")
 
-    from smbreplay import constants
+    from smbreplay import constants  # noqa: F401
 
     print("✓ constants module imported")
 
-    from smbreplay import tshark_processor
+    from smbreplay import tshark_processor  # noqa: F401
 
     print("✓ tshark_processor module imported")
 
-    from smbreplay import ingestion
+    from smbreplay import ingestion  # noqa: F401
 
     print("✓ ingestion module imported")
 
-    from smbreplay import session_manager
+    from smbreplay import session_manager  # noqa: F401
 
     print("✓ session_manager module imported")
 
-    from smbreplay import replay
+    from smbreplay import replay  # noqa: F401
 
     print("✓ replay module imported")
 
-    from smbreplay import main
+    from smbreplay import main  # noqa: F401
 
     print("✓ main module imported")
 
-    from smbreplay import utils
+    from smbreplay import utils  # noqa: F401
 
     print("✓ utils module imported")
 
     # Test package-level imports
-    from smbreplay import SMB2ReplaySystem
+    from smbreplay import SMB2ReplaySystem  # noqa: F401
 
     print("✓ SMB2ReplaySystem imported")
 
-    from smbreplay import get_config, get_logger
+    from smbreplay import get_config, get_logger  # noqa: F401
 
     print("✓ Configuration functions imported")
 
@@ -115,7 +113,7 @@ def test_session_manager():
     """Test session manager functionality."""
     print("\nTesting session manager...")
 
-    from smbreplay import SessionManager, get_session_manager
+    from smbreplay import SessionManager, get_session_manager  # noqa: F401
 
     # Test session manager creation
     session_mgr = get_session_manager()

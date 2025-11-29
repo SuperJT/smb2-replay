@@ -5,7 +5,7 @@ Queries file information using smbprotocol Open object.
 
 import logging
 from smbprotocol.exceptions import SMBException
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from ..constants import SMB2_FILE_INFO_CLASSES, SMB2_INFO_LEVELS
 

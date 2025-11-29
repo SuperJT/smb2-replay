@@ -12,7 +12,7 @@ from .main import main
 def handle_broken_pipe():
     """Handle broken pipe errors gracefully."""
     # SIGPIPE is not available on Windows, so we need to check for it
-    if hasattr(signal, 'SIGPIPE'):
+    if hasattr(signal, "SIGPIPE"):
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 

@@ -71,7 +71,7 @@ def handle_query_directory(replayer, op: Dict[str, Any], **kwargs):
         index_specified = bool(
             flags & SMB2_QUERY_DIRECTORY_FLAGS["SMB2_INDEX_SPECIFIED"]
         )
-        reopen = bool(flags & SMB2_QUERY_DIRECTORY_FLAGS["SMB2_REOPEN"])
+        _reopen = bool(flags & SMB2_QUERY_DIRECTORY_FLAGS["SMB2_REOPEN"])  # noqa: F841
 
         replayer.logger.debug(
             f"Query Directory: fid={original_fid}, file_info_class={file_info_class}, "

@@ -40,7 +40,9 @@ class PcapConfig(TypedDict, total=False):
 class ConfigManager:
     """Manages configuration settings and persistence."""
 
-    def __init__(self, config_dir: Optional[str] = None, state_dir: Optional[str] = None):
+    def __init__(
+        self, config_dir: Optional[str] = None, state_dir: Optional[str] = None
+    ):
         """Initialize configuration manager.
 
         Args:
@@ -58,7 +60,9 @@ class ConfigManager:
         if state_dir is None:
             xdg_state_home = os.environ.get("XDG_STATE_HOME")
             if xdg_state_home:
-                state_dir = os.path.join(os.path.expanduser(xdg_state_home), "smbreplay")
+                state_dir = os.path.join(
+                    os.path.expanduser(xdg_state_home), "smbreplay"
+                )
             else:
                 state_dir = os.path.expanduser("~/.local/state/smbreplay")
 
@@ -77,7 +81,9 @@ class ConfigManager:
 
         # Session management
         self.current_session_id: Optional[str] = None
-        self.current_case_id: Optional[str] = os.environ.get("DEFAULT_CASE_ID", "2010101010")
+        self.current_case_id: Optional[str] = os.environ.get(
+            "DEFAULT_CASE_ID", "2010101010"
+        )
         self.current_trace_name: Optional[str] = None
 
         # Lazy initialization flags

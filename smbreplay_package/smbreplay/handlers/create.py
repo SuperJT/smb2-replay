@@ -1,9 +1,11 @@
+import math
+
 import logging
 from smbprotocol.exceptions import SMBException
-from typing import Any, Dict, List, Optional
-import math
-from smbreplay.utils import get_share_relative_path
 from smbprotocol.open import Open
+from typing import Any, Dict, List, Optional
+
+from smbreplay.utils import get_share_relative_path
 
 logger = logging.getLogger(__name__)
 

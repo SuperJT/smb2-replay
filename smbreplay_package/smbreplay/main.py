@@ -89,7 +89,7 @@ def handle_broken_pipe():
     # Set up signal handler for SIGPIPE to default behavior
     # This prevents Python from raising BrokenPipeError for SIGPIPE
     # SIGPIPE is not available on Windows, so we need to check for it
-    if hasattr(signal, 'SIGPIPE'):
+    if hasattr(signal, "SIGPIPE"):
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 
@@ -835,15 +835,15 @@ class SMB2ReplaySystem:
             if not dry_run and connection:
                 try:
                     tree.disconnect()
-                except:
+                except Exception:
                     pass
                 try:
                     session.disconnect()
-                except:
+                except Exception:
                     pass
                 try:
                     connection.disconnect()
-                except:
+                except Exception:
                     pass
 
             # Set success based on errors
@@ -1210,7 +1210,7 @@ Data Storage:
     config_get_parser.add_argument("key", help="Configuration key")
 
     # Info command (simplified for system status)
-    info_parser = subparsers.add_parser(
+    _info_parser = subparsers.add_parser(  # noqa: F841
         "info", help="Show system information and status"
     )
 
@@ -1361,7 +1361,7 @@ def handle_config_command(args, config):
                 set_verbosity(level)
                 safe_print(f"Set verbosity_level to: {level}")
             except ValueError:
-                safe_print(f"Error: verbosity_level must be a number")
+                safe_print("Error: verbosity_level must be a number")
         elif args.key == "session_id":
             config.set_session_id(args.value)
             safe_print(f"Set session_id to: {args.value}")
@@ -1380,7 +1380,7 @@ def handle_config_command(args, config):
                 config.set_port(port)
                 safe_print(f"Set port to: {port}")
             except ValueError:
-                safe_print(f"Error: port must be a number")
+                safe_print("Error: port must be a number")
         elif args.key == "domain":
             config.set_domain(args.value)
             safe_print(f"Set domain to: {args.value}")
@@ -1399,7 +1399,7 @@ def handle_config_command(args, config):
                 config.set_max_wait(max_wait)
                 safe_print(f"Set max_wait to: {max_wait}")
             except ValueError:
-                safe_print(f"Error: max_wait must be a number")
+                safe_print("Error: max_wait must be a number")
         else:
             safe_print(f"Error: Unknown configuration key: {args.key}")
             safe_print(
@@ -1885,7 +1885,7 @@ def _main_impl():
         # Show detailed results
         if "operations" in validation_result["checks"]:
             op_check = validation_result["checks"]["operations"]
-            safe_print(f"\n📋 Operations Check:")
+            safe_print("\n📋 Operations Check:")
             safe_print(f"  Valid: {op_check.get('valid', False)}")
             safe_print(f"  Total operations: {op_check.get('total_operations', 0)}")
             safe_print(
@@ -1900,7 +1900,7 @@ def _main_impl():
 
         if "file_system" in validation_result["checks"]:
             fs_check = validation_result["checks"]["file_system"]
-            safe_print(f"\n📁 File System Check:")
+            safe_print("\n📁 File System Check:")
             safe_print(f"  Ready: {fs_check.get('ready', False)}")
             safe_print(f"  Total paths: {fs_check.get('total_paths', 0)}")
             safe_print(f"  Accessible paths: {fs_check.get('accessible_paths', 0)}")
@@ -1917,27 +1917,27 @@ def _main_impl():
 
             warnings = fs_check.get("warnings", [])
             if warnings:
-                safe_print(f"  Warnings:")
+                safe_print("  Warnings:")
                 for warning in warnings:
                     safe_print(f"    - {warning}")
 
         # Show errors and warnings
         if validation_result["errors"]:
-            safe_print(f"\n❌ Errors:")
+            safe_print("\n❌ Errors:")
             for error in validation_result["errors"]:
                 safe_print(f"  {error}")
 
         if validation_result["warnings"]:
-            safe_print(f"\n⚠️  Warnings:")
+            safe_print("\n⚠️  Warnings:")
             for warning in validation_result["warnings"]:
                 safe_print(f"  {warning}")
 
         # Exit with appropriate code
         if not validation_result["ready"]:
-            safe_print(f"\n💡 To fix issues:")
-            safe_print(f"  - Check SMB server configuration")
-            safe_print(f"  - Ensure required directories exist")
-            safe_print(f"  - Verify operation compatibility")
+            safe_print("\n💡 To fix issues:")
+            safe_print("  - Check SMB server configuration")
+            safe_print("  - Ensure required directories exist")
+            safe_print("  - Verify operation compatibility")
             sys.exit(1)
         else:
             safe_print(f"\n🎉 Ready to replay! Use: smbreplay replay {session_id}")
@@ -2027,7 +2027,7 @@ def _main_impl():
     elif args.command == "info":
         info = system.get_system_info()
         safe_print("SMB2 Replay System Status:")
-        safe_print(f"  Version: 1.0.0")
+        safe_print("  Version: 1.0.0")
         safe_print(f"  TShark available: {info['tshark_available']}")
         safe_print(
             f"  Supported commands: {', '.join(info['supported_commands'].values())}"

@@ -12,6 +12,7 @@ from typing import Any, Dict
 # Try to import SMB2LockElement - only available in GitHub version
 try:
     from smbprotocol.open import SMB2LockElement
+
     LOCK_SUPPORT_AVAILABLE = True
 except ImportError:
     LOCK_SUPPORT_AVAILABLE = False
