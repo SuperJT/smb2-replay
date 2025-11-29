@@ -110,7 +110,11 @@ export class SMBReplayClient {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          detail?: string;
+          code?: string;
+        };
 
         if (response.status === 404) {
           throw new NotFoundError(
