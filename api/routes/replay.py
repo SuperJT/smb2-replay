@@ -71,6 +71,8 @@ def setup_infrastructure(
         server_overrides = {}
         if request.server_ip:
             server_overrides["server_ip"] = request.server_ip
+        if request.domain:
+            server_overrides["domain"] = request.domain
         if request.username:
             server_overrides["username"] = request.username
         if request.password:

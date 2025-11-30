@@ -40,9 +40,11 @@ async def lifespan(app: FastAPI):
     health_status = service.health_check()
 
     if health_status["status"] == "error":
-        logger.warning("Service started in degraded mode - some features may be unavailable")
+        logger.warning("Service started with errors - health check failed")
+    elif health_status["status"] == "degraded":
+        logger.warning("Service started in degraded mode - tshark unavailable, some features may be limited")
     else:
-        logger.info(f"Service started successfully. tshark available: {health_status['tshark_available']}")
+        logger.info("Service started successfully")
 
     yield
 

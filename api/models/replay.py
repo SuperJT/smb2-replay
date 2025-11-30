@@ -62,6 +62,7 @@ class SetupRequest(BaseModel):
 
     # Optional server overrides
     server_ip: Optional[str] = Field(None, description="Override server IP")
+    domain: Optional[str] = Field(None, description="Override domain")
     username: Optional[str] = Field(None, description="Override username")
     password: Optional[str] = Field(None, description="Override password")
     tree_name: Optional[str] = Field(None, description="Override tree/share name")
