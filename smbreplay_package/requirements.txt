@@ -1,0 +1,25 @@
+# Core dependencies for SMB2 replay project
+pandas>=2.0.0
+pyarrow>=10.0.0
+numpy>=1.24.0
+
+# SMB protocol implementation for replay functionality
+smbprotocol>=1.8.0
+
+# Network and protocol libraries
+paramiko>=3.0.0
+scapy>=2.5.0
+
+# System and process monitoring
+psutil>=5.9.0
+
+# Development and testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# CLI and argument parsing
+click>=8.0.0
+argparse>=1.4.0
+
+# Logging and configuration
+python-dotenv>=1.0.0 

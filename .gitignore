@@ -1,0 +1,73 @@
+# Virtual Environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Python package build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Configuration files that may contain sensitive data
+config.pkl
+
+# Log files
+*.log
+
+# IDE files
+.vscode/
+.idea/
+
+# Wireshark-generated files (version specific)
+smb2_fields.txt
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+smbreplay.log
+
+# Trace data
+cases/
+traces/
+evidence/
+*.pcap
+*.pcapng
+*.trc
+*.trc0
+*.parquet
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.staging
+
+# Additional temporary files
+*.tmp
+*.temp
+.cache/
+.pytest_cache/smb2_fields.txt
+
+# Test coverage files
+.coverage
+htmlcov/
+coverage.xml
+
+# Backup files from formatting
+*.backup
+node_modules/
