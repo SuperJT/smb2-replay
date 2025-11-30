@@ -1,12 +1,12 @@
 # SMB2 Replay System
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/SuperJT/smb2-replay/releases/tag/v1.0.0)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/SuperJT/smb2-replay/releases/tag/v1.1.0)
 [![Python](https://img.shields.io/badge/python-3.12+-green.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 A comprehensive system to capture, store, and replay SMB2 (Server Message Block version 2) network traffic for diagnostic, testing, and protocol analysis purposes in a controlled lab environment.
 
-**Release**: [v1.0.0](RELEASE_NOTES_1.0.0.md) - Production Ready
+**Release**: [v1.1.0](https://github.com/SuperJT/smb2-replay/releases/tag/v1.1.0) - REST API and TypeScript SDK
 
 ---
 
@@ -40,8 +40,15 @@ For detailed installation instructions, see [INSTALLATION.md](INSTALLATION.md).
 
 ### Quick Installation
 
+**Option 1: Install from GitHub (Quickest)**
+```bash
+pip install git+https://github.com/SuperJT/smb2-replay.git
 
-**Option 1: Interactive Installation (Recommended)**
+# Or install a specific version
+pip install git+https://github.com/SuperJT/smb2-replay.git@v1.1.0
+```
+
+**Option 2: Interactive Installation (Recommended for Development)**
 ```bash
 git clone https://github.com/SuperJT/smb2-replay.git
 cd smb2-replay
@@ -50,7 +57,7 @@ source venv/bin/activate
 python install.py  # Interactive installer
 ```
 
-**Option 2: Manual Installation**
+**Option 3: Manual Installation**
 1. **Install system dependencies**:
    ```bash
    # Ubuntu/Debian
