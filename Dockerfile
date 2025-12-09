@@ -18,8 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Set UV environment variables for optimal Docker usage
-ENV UV_SYSTEM_PYTHON=1 \
-    UV_COMPILE_BYTECODE=1 \
+ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
 
 # Create virtual environment in a known location
@@ -27,13 +26,12 @@ ENV VIRTUAL_ENV=/opt/venv
 RUN uv venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Install smbreplay with API extras from GitHub using UV (10-100x faster than pip)
-# UV can install from git repositories directly with extras
-# This ensures all dependencies are resolved together in one transaction
-RUN uv pip install --no-cache "git+https://github.com/SuperJT/smb2-replay.git#egg=smbreplay[api]"
-
-# Clone repo to get the API module (not included in pip package)
+# Clone repo first to get both the package and API module
 RUN git clone --depth 1 https://github.com/SuperJT/smb2-replay.git /tmp/smbreplay
+
+# Install smbreplay with API extras from local clone using UV (10-100x faster than pip)
+# Installing from local path with extras ensures all dependencies resolve correctly
+RUN uv pip install --no-cache "/tmp/smbreplay[api]"
 
 
 # ============================================================================
