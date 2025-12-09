@@ -27,16 +27,10 @@ ENV VIRTUAL_ENV=/opt/venv
 RUN uv venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Install smbreplay from GitHub using UV (10-100x faster than pip)
-# UV can install from git repositories directly
-RUN uv pip install --no-cache git+https://github.com/SuperJT/smb2-replay.git
-
-# Install API dependencies using UV
-# Use uv pip install for speed (10-100x faster than regular pip)
-RUN uv pip install --no-cache \
-    fastapi \
-    "uvicorn[standard]" \
-    pydantic
+# Install smbreplay with API extras from GitHub using UV (10-100x faster than pip)
+# UV can install from git repositories directly with extras
+# This ensures all dependencies are resolved together in one transaction
+RUN uv pip install --no-cache "git+https://github.com/SuperJT/smb2-replay.git#egg=smbreplay[api]"
 
 # Clone repo to get the API module (not included in pip package)
 RUN git clone --depth 1 https://github.com/SuperJT/smb2-replay.git /tmp/smbreplay
@@ -85,5 +79,5 @@ EXPOSE 3004
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3004/health || exit 1
 
-# Run the application
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "3004"]
+# Run the application using Python module execution for better reliability
+CMD ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "3004"]
