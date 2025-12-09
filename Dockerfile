@@ -1,31 +1,50 @@
 # SMB Replay API Dockerfile
-# Multi-stage build for smaller image size
+# Multi-stage build with UV for faster dependency installation
 
+# ============================================================================
+# Builder stage - Install dependencies with UV
+# ============================================================================
 FROM python:3.12-slim as builder
 
-# Install build dependencies (including git for pip install from GitHub)
+# Install system dependencies (git for GitHub install, curl for UV installer)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     git \
+    curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Create virtual environment
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Install UV from official Docker image (fastest method)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Install smbreplay from GitHub
-RUN pip install --no-cache-dir git+https://github.com/SuperJT/smb2-replay.git
+# Set UV environment variables for optimal Docker usage
+ENV UV_SYSTEM_PYTHON=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
 
-# Install API dependencies (FastAPI, uvicorn, etc.)
-RUN pip install --no-cache-dir \
-    fastapi>=0.109.0 \
-    "uvicorn[standard]>=0.27.0" \
-    pydantic>=2.5.0
+# Create virtual environment in a known location
+ENV VIRTUAL_ENV=/opt/venv
+RUN uv venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+# Install smbreplay from GitHub using UV (10-100x faster than pip)
+# UV can install from git repositories directly
+RUN uv pip install --no-cache git+https://github.com/SuperJT/smb2-replay.git
+
+# Install API dependencies using UV
+# Use uv pip install for speed (10-100x faster than regular pip)
+RUN uv pip install --no-cache \
+    fastapi \
+    "uvicorn[standard]" \
+    pydantic
 
 # Clone repo to get the API module (not included in pip package)
 RUN git clone --depth 1 https://github.com/SuperJT/smb2-replay.git /tmp/smbreplay
 
 
+# ============================================================================
+# Runtime stage - Minimal image with only runtime dependencies
+# ============================================================================
 FROM python:3.12-slim
 
 # Install tshark and runtime dependencies
@@ -54,10 +73,10 @@ RUN useradd --create-home --shell /bin/bash appuser \
 USER appuser
 
 # Environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PORT=3004
-ENV TRACES_FOLDER=/stingray
-ENV SESSION_OUTPUT_DIR=/sessions
+ENV PYTHONUNBUFFERED=1 \
+    PORT=3004 \
+    TRACES_FOLDER=/stingray \
+    SESSION_OUTPUT_DIR=/sessions
 
 # Expose port
 EXPOSE 3004

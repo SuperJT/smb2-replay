@@ -33,14 +33,33 @@ For detailed installation instructions, see [INSTALLATION.md](INSTALLATION.md).
 
 - Python 3.12+ (tested with Python 3.12.3)
 - Linux/WSL2 environment
-- Virtual environment support (`venv`)
+- **UV** (recommended) or pip for package management
 - **tshark**: Wireshark command-line tool for packet capture analysis
 - **capinfos**: Wireshark utility for PCAP file information (usually installed with tshark)
 - **pcapfix**: PCAP file repair utility (for corrupted files)
 
 ### Quick Installation
 
-**Option 1: Install from GitHub (Quickest)**
+**Option 1: Quick Setup with UV (Recommended - Fastest)**
+```bash
+# Install UV if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Clone and setup
+git clone https://github.com/SuperJT/smb2-replay.git
+cd smb2-replay
+./scripts/setup-uv.sh  # Automated setup
+```
+
+**Option 2: Install from GitHub with UV (Fast)**
+```bash
+uv pip install git+https://github.com/SuperJT/smb2-replay.git
+
+# Or install a specific version
+uv pip install git+https://github.com/SuperJT/smb2-replay.git@v1.1.0
+```
+
+**Option 3: Install from GitHub with pip (Traditional)**
 ```bash
 pip install git+https://github.com/SuperJT/smb2-replay.git
 
@@ -48,16 +67,23 @@ pip install git+https://github.com/SuperJT/smb2-replay.git
 pip install git+https://github.com/SuperJT/smb2-replay.git@v1.1.0
 ```
 
-**Option 2: Interactive Installation (Recommended for Development)**
+**Option 4: Interactive Installation (For Development)**
 ```bash
 git clone https://github.com/SuperJT/smb2-replay.git
 cd smb2-replay
-python3 -m venv venv --copies
+
+# With UV (recommended)
+uv venv
+source .venv/bin/activate
+python install.py  # Auto-detects UV
+
+# Or with pip (traditional)
+python3 -m venv venv
 source venv/bin/activate
-python install.py  # Interactive installer
+python install.py  # Falls back to pip
 ```
 
-**Option 3: Manual Installation**
+**Option 5: Manual Installation**
 1. **Install system dependencies**:
    ```bash
    # Ubuntu/Debian
@@ -72,20 +98,39 @@ python install.py  # Interactive installer
    ```bash
    git clone https://github.com/SuperJT/smb2-replay.git
    cd smb2-replay
-   python3 -m venv venv --copies
+
+   # With UV (recommended - faster)
+   uv venv
+   source .venv/bin/activate
+   uv sync                      # Basic installation
+   # uv sync --extra dev-tools  # Or with development tools
+   # uv sync --all-extras       # Or everything (for contributors)
+
+   # Or with pip (traditional)
+   python3 -m venv venv
    source venv/bin/activate
-   
-   # Basic installation (recommended for new users)
-   pip install -e .
-   
-   # Or with development tools (for developers)
-   pip install -e .[dev-tools]
+   pip install -e .             # Basic installation
+   # pip install -e .[dev-tools]  # Or with development tools
+   # pip install -e .[dev-full]   # Or everything (for contributors)
    ```
 
 3. **Test the environment**:
    ```bash
    python smbreplay_package/smbreplay/test_environment.py
    ```
+
+#### Why UV?
+
+UV is a modern Python package installer that offers significant advantages:
+- **10-100x faster** than pip for dependency resolution and installation
+- **Built-in lock files** (`uv.lock`) for reproducible builds
+- **Drop-in compatible** with pip - works with existing PyPI packages
+- **Better caching** for faster subsequent installs
+
+You can use pip if you prefer, but UV provides a significantly better developer experience. Install UV with:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
 ### Quick Start
 
