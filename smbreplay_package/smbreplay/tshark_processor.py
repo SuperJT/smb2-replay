@@ -540,13 +540,14 @@ def create_session_directory(
     Returns:
         Path to the session directory
     """
-    from .config import get_traces_folder
+    from .config import get_session_output_dir
 
     logger.info(f"Creating directory for case {case_number}, trace {trace_name}")
 
     try:
-        traces_folder = get_traces_folder()
-        base_dir = os.path.join(traces_folder, case_number)
+        # Use session_output_dir for writing processed data (writable location)
+        session_output = get_session_output_dir()
+        base_dir = os.path.join(session_output, case_number)
         tracer_dir = os.path.join(base_dir, ".tracer")
         pcap_dir = os.path.join(tracer_dir, trace_name.split(".")[0])
         output_dir = os.path.join(pcap_dir, "sessions")

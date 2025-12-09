@@ -4,8 +4,8 @@ Handles PCAP file ingestion and extracts SMB2 sessions for analysis.
 Optimized for performance and memory efficiency.
 """
 
+import asyncio
 import gc
-
 import json
 import os
 import pandas as pd
@@ -14,9 +14,11 @@ import pyarrow.parquet as pq
 import time
 import traceback
 from collections import OrderedDict
+from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
 from .config import get_config, get_logger
+from .database import get_database_client
 from .constants import (
     CRITICAL_FIELDS,
     check_tshark_availability,
@@ -304,6 +306,99 @@ def save_session_metadata(
         raise
 
 
+async def save_sessions_to_database(
+    case_number: str,
+    trace_name: str,
+    capture_path: str,
+    packet_count: int,
+    file_size: int,
+    sessions: Dict[str, pd.DataFrame],
+    status_callback: Optional[Callable] = None,
+) -> None:
+    """Save trace and session data to PostgreSQL database.
+
+    Args:
+        case_number: Case number
+        trace_name: Trace name
+        capture_path: Full path to capture file
+        packet_count: Number of packets in trace
+        file_size: File size in bytes
+        sessions: Dictionary of session DataFrames
+        status_callback: Optional callback for status updates
+    """
+    logger.info(
+        f"Saving {len(sessions)} sessions to database for {case_number}/{trace_name}"
+    )
+
+    try:
+        db = get_database_client()
+
+        # Create or update trace record
+        trace_id = await db.create_or_update_trace(
+            case_number=case_number,
+            trace_name=trace_name,
+            capture_file_path=capture_path,
+            packet_count=packet_count,
+            file_size=file_size,
+            status="INGESTING",
+            metadata={"session_count": len(sessions)},
+        )
+
+        logger.info(f"Created/updated trace {trace_id} in database")
+        if status_callback:
+            status_callback(f"Saving {len(sessions)} sessions to database...")
+
+        # Save individual sessions
+        for i, (sesid, session_df) in enumerate(sessions.items(), 1):
+            # Calculate unique commands
+            unique_commands = 0
+            if "smb2.cmd" in session_df.columns:
+                try:
+                    unique_commands = int(session_df["smb2.cmd"].apply(len).sum())
+                except (TypeError, ValueError):
+                    unique_commands = 0
+
+            await db.create_session(
+                trace_id=trace_id,
+                session_id=sesid,
+                frames_df=session_df,
+                unique_commands=unique_commands,
+            )
+
+            if i % 10 == 0 or i == len(sessions):
+                logger.info(f"Saved {i}/{len(sessions)} sessions to database")
+                if status_callback:
+                    status_callback(f"Saved {i}/{len(sessions)} sessions to database")
+
+        # Mark trace as completed
+        await db.update_trace_status(
+            trace_id=trace_id, status="COMPLETED", ingested_at=datetime.now()
+        )
+
+        logger.info(
+            f"Successfully saved all {len(sessions)} sessions to database"
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error saving to database: {str(e)}\n{traceback.format_exc()}"
+        )
+        # Try to mark trace as failed
+        try:
+            if "trace_id" in locals():
+                db = get_database_client()
+                await db.update_trace_status(
+                    trace_id=trace_id,
+                    status="FAILED",
+                    error_message=str(e),
+                )
+        except Exception as inner_e:
+            logger.error(f"Failed to update trace status: {inner_e}")
+
+        # Re-raise the exception
+        raise
+
+
 # Maintain backward compatibility while using optimized functions
 def normalize_sesid(sesid_str) -> set[str]:
     """Normalize smb2.sesid values, handling lists and commas, returns set[str]."""
@@ -546,39 +641,68 @@ def run_ingestion(
         logger.info(f"Output directory: {output_dir}")
         status_callback(f"Output directory: {output_dir}")
 
-        # Save data to Parquet files with memory monitoring
-        parquet_path = os.path.join(output_dir, "tshark_output_full.parquet")
+        # Determine storage strategy
+        use_database = os.getenv("USE_DATABASE", "true").lower() == "true"
 
         try:
-            # Monitor memory before saving
-            available_memory = psutil.virtual_memory().available / 1024**2
+            if use_database:
+                # Database-only mode: Skip Parquet, save directly to PostgreSQL
+                logger.info("Database mode enabled - saving directly to PostgreSQL...")
+                status_callback("Saving sessions to database...")
 
-            if available_memory < 512:
-                logger.warning(f"Low available memory: {available_memory:.2f}MB")
-                status_callback(
-                    f"Warning: Low available memory: {available_memory:.2f}MB"
-                )
-                gc.collect()  # Force garbage collection
+                try:
+                    asyncio.run(
+                        save_sessions_to_database(
+                            case_number=case_number,
+                            trace_name=trace_name,
+                            capture_path=capture_path,
+                            packet_count=packet_count,
+                            file_size=os.path.getsize(capture_path),
+                            sessions=sessions,
+                            status_callback=status_callback,
+                        )
+                    )
+                    logger.info("Successfully saved sessions to database")
+                    status_callback("Successfully saved sessions to database")
+                except Exception as db_error:
+                    logger.error(f"Failed to save to database: {db_error}")
+                    status_callback(f"Error - Failed to save sessions to database: {str(db_error)}")
+                    raise  # Fail the ingestion if database save fails in database-only mode
 
-            # Save full dataset
-            save_to_parquet(df, parquet_path)
-            logger.info(f"Saved full data to {parquet_path}")
-            status_callback(f"Saved full data to {parquet_path}")
+            else:
+                # Parquet-only mode: Save to Parquet files (legacy behavior)
+                logger.info("Parquet mode enabled - saving to Parquet files...")
+                parquet_path = os.path.join(output_dir, "tshark_output_full.parquet")
 
-            # Save individual sessions with progress tracking
-            for i, (sesid, session_df) in enumerate(sessions.items(), 1):
-                session_parquet = os.path.join(
-                    output_dir, f"smb2_session_{sesid}.parquet"
-                )
-                save_to_parquet(session_df, session_parquet)
+                # Monitor memory before saving
+                available_memory = psutil.virtual_memory().available / 1024**2
 
-                if i % 10 == 0 or i == len(sessions):
-                    logger.info(f"Saved {i}/{len(sessions)} sessions")
-                    status_callback(f"Saved {i}/{len(sessions)} sessions")
+                if available_memory < 512:
+                    logger.warning(f"Low available memory: {available_memory:.2f}MB")
+                    status_callback(
+                        f"Warning: Low available memory: {available_memory:.2f}MB"
+                    )
+                    gc.collect()  # Force garbage collection
 
-            # Save enhanced metadata
-            save_session_metadata(case_number, trace_name, sessions, output_dir)
-            logger.info("Enhanced session metadata saved")
+                # Save full dataset
+                save_to_parquet(df, parquet_path)
+                logger.info(f"Saved full data to {parquet_path}")
+                status_callback(f"Saved full data to {parquet_path}")
+
+                # Save individual sessions with progress tracking
+                for i, (sesid, session_df) in enumerate(sessions.items(), 1):
+                    session_parquet = os.path.join(
+                        output_dir, f"smb2_session_{sesid}.parquet"
+                    )
+                    save_to_parquet(session_df, session_parquet)
+
+                    if i % 10 == 0 or i == len(sessions):
+                        logger.info(f"Saved {i}/{len(sessions)} sessions")
+                        status_callback(f"Saved {i}/{len(sessions)} sessions")
+
+                # Save enhanced metadata
+                save_session_metadata(case_number, trace_name, sessions, output_dir)
+                logger.info("Enhanced session metadata saved")
 
         except Exception as e:
             logger.critical(f"Error saving sessions or metadata: {str(e)}")

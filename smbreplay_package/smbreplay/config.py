@@ -79,6 +79,12 @@ class ConfigManager:
             "TRACES_FOLDER", os.path.expanduser("~/cases")
         )
 
+        # Set up session output directory (for processed session data)
+        # Defaults to traces_folder if not specified (backward compatible)
+        self.session_output_dir: str = os.environ.get(
+            "SESSION_OUTPUT_DIR", self.traces_folder
+        )
+
         # Session management
         self.current_session_id: Optional[str] = None
         self.current_case_id: Optional[str] = os.environ.get(
@@ -274,6 +280,16 @@ class ConfigManager:
         """Set traces folder path."""
         self.traces_folder = str(os.path.expanduser(path))
         # Only create the directory when it's actually needed
+        self._dirs_created = False  # Reset flag to recreate dirs with new path
+        self.save_config()
+
+    def get_session_output_dir(self) -> str:
+        """Get session output directory path."""
+        return self.session_output_dir
+
+    def set_session_output_dir(self, path: str):
+        """Set session output directory path."""
+        self.session_output_dir = str(os.path.expanduser(path))
         self._dirs_created = False  # Reset flag to recreate dirs with new path
         self.save_config()
 
@@ -518,6 +534,11 @@ def get_logger() -> logging.Logger:
 def get_traces_folder() -> str:
     """Get the traces folder path."""
     return get_config().traces_folder
+
+
+def get_session_output_dir() -> str:
+    """Get the session output directory path."""
+    return get_config().session_output_dir
 
 
 def set_verbosity(level: int):

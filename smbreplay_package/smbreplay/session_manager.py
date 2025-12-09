@@ -4,8 +4,8 @@ Handles session loading, filtering, and operations management for SMB2 analysis.
 Optimized for performance and memory efficiency.
 """
 
+import asyncio
 import gc
-
 import os
 import pandas as pd
 import pyarrow.parquet as pq
@@ -21,6 +21,7 @@ from .constants import (
     normalize_path,
     shorten_path,
 )
+from .database import get_database_client
 from .tshark_processor import create_session_directory
 
 logger = get_logger()
@@ -70,10 +71,13 @@ class SessionManager:
             # Extract case number from capture path
             case_number = "local_case"  # Default for local development
             parts = capture_path.split(os.sep)
-            if "cases" in parts:
-                cases_index = parts.index("cases")
-                if cases_index + 1 < len(parts):
-                    case_number = parts[cases_index + 1]
+            # Check for both "cases" (local) and "stingray" (Docker) folders
+            for folder_name in ["cases", "stingray"]:
+                if folder_name in parts:
+                    folder_index = parts.index(folder_name)
+                    if folder_index + 1 < len(parts):
+                        case_number = parts[folder_index + 1]
+                        break
 
             trace_name = os.path.basename(capture_path).split(".")[0]
 
@@ -96,8 +100,51 @@ class SessionManager:
             logger.error(f"Error deriving output directory: {e}")
             return None
 
+    async def _list_sessions_from_database(
+        self, case_number: str, trace_name: str
+    ) -> List[str]:
+        """List sessions from PostgreSQL database.
+
+        Args:
+            case_number: Case number
+            trace_name: Trace name
+
+        Returns:
+            List of session IDs (formatted as smb2_session_<sesid>.parquet for compatibility)
+        """
+        try:
+            db = get_database_client()
+
+            # Get trace record
+            trace = await db.get_trace_by_path(case_number, trace_name)
+            if not trace:
+                logger.warning(
+                    f"No trace found in database for {case_number}/{trace_name}"
+                )
+                return []
+
+            # Get all sessions for this trace
+            sessions = await db.list_sessions_for_trace(trace["id"])
+
+            # Format session IDs to match Parquet file naming
+            session_files = [
+                f"smb2_session_{session['sessionId']}.parquet" for session in sessions
+            ]
+
+            logger.info(
+                f"Found {len(session_files)} sessions in database for {case_number}/{trace_name}"
+            )
+            return sorted(session_files)
+
+        except Exception as e:
+            logger.debug(f"Error listing sessions from database: {e}")
+            return []
+
     def list_session_files(self, output_dir: str) -> List[str]:
-        """List session Parquet files in the output directory.
+        """List session files from database or Parquet files.
+
+        In database mode (USE_DATABASE=true): Queries PostgreSQL only
+        In Parquet mode (USE_DATABASE=false): Reads Parquet files only
 
         Args:
             output_dir: Directory containing session files
@@ -105,32 +152,102 @@ class SessionManager:
         Returns:
             List of session file names
         """
-        logger.info(f"Listing session files in {output_dir}")
+        logger.info(f"Listing session files for {output_dir}")
 
-        try:
-            if not os.path.exists(output_dir):
-                logger.warning(f"Output directory does not exist: {output_dir}")
+        use_database = os.getenv("USE_DATABASE", "true").lower() == "true"
+
+        if use_database:
+            # Database-only mode
+            try:
+                # Extract case number and trace name from output_dir path
+                # Expected format: /.../case_number/.tracer/trace_name/sessions
+                parts = output_dir.split(os.sep)
+                if ".tracer" in parts:
+                    tracer_index = parts.index(".tracer")
+                    if tracer_index > 0 and tracer_index + 1 < len(parts):
+                        case_number = parts[tracer_index - 1]
+                        trace_name = parts[tracer_index + 1]
+
+                        logger.debug(
+                            f"Querying database for sessions: {case_number}/{trace_name}"
+                        )
+                        session_files = asyncio.run(
+                            self._list_sessions_from_database(case_number, trace_name)
+                        )
+
+                        if session_files:
+                            logger.info(
+                                f"Found {len(session_files)} sessions in database"
+                            )
+                            return session_files
+                        else:
+                            logger.warning(
+                                f"No sessions found in database for {case_number}/{trace_name}"
+                            )
+                            return []
+            except Exception as e:
+                logger.error(f"Error querying database: {e}")
+                return []
+        else:
+            # Parquet-only mode (legacy)
+            try:
+                if not os.path.exists(output_dir):
+                    logger.warning(f"Output directory does not exist: {output_dir}")
+                    return []
+
+                files = os.listdir(output_dir)
+                session_files = [
+                    f
+                    for f in files
+                    if f.startswith("smb2_session_") and f.endswith(".parquet")
+                ]
+
+                logger.info(f"Found {len(session_files)} session files in {output_dir}")
+                return sorted(session_files)
+
+            except Exception as e:
+                logger.error(f"Error listing session files: {e}")
                 return []
 
-            files = os.listdir(output_dir)
-            session_files = [
-                f
-                for f in files
-                if f.startswith("smb2_session_") and f.endswith(".parquet")
-            ]
-
-            logger.info(f"Found {len(session_files)} session files")
-            return sorted(session_files)
-
-        except Exception as e:
-            logger.error(f"Error listing session files: {e}")
-            return []
-
-    def load_session_by_file(self, session_file: str, output_dir: str) -> bool:
-        """Load a session from a Parquet file with optimizations.
+    async def _load_session_from_database(
+        self, case_number: str, trace_name: str, session_id: str
+    ) -> Optional[pd.DataFrame]:
+        """Load session frames from PostgreSQL database.
 
         Args:
-            session_file: Name of the session file
+            case_number: Case number
+            trace_name: Trace name
+            session_id: Session ID
+
+        Returns:
+            DataFrame with session frames or None if not found
+        """
+        try:
+            db = get_database_client()
+
+            # Get trace record
+            trace = await db.get_trace_by_path(case_number, trace_name)
+            if not trace:
+                logger.warning(
+                    f"No trace found in database for {case_number}/{trace_name}"
+                )
+                return None
+
+            # Get session frames
+            df = await db.get_session_frames(trace["id"], session_id)
+            return df
+
+        except Exception as e:
+            logger.debug(f"Error loading session from database: {e}")
+            return None
+
+    def load_session_by_file(self, session_file: str, output_dir: str) -> bool:
+        """Load a session from database or Parquet file.
+
+        Tries database first, falls back to Parquet files if database unavailable.
+
+        Args:
+            session_file: Name of the session file (e.g., smb2_session_0x1234567890abcdef.parquet)
             output_dir: Directory containing the session file
 
         Returns:
@@ -138,6 +255,46 @@ class SessionManager:
         """
         logger.info(f"Loading session from file: {session_file}")
 
+        # Extract session ID from filename
+        # Format: smb2_session_<sesid>.parquet
+        try:
+            if session_file.startswith("smb2_session_") and session_file.endswith(
+                ".parquet"
+            ):
+                session_id = session_file[len("smb2_session_") : -len(".parquet")]
+
+                # Try database first if enabled
+                if os.getenv("USE_DATABASE", "true").lower() == "true":
+                    parts = output_dir.split(os.sep)
+                    if ".tracer" in parts:
+                        tracer_index = parts.index(".tracer")
+                        if tracer_index > 0 and tracer_index + 1 < len(parts):
+                            case_number = parts[tracer_index - 1]
+                            trace_name = parts[tracer_index + 1]
+
+                            logger.debug(
+                                f"Attempting to load session {session_id} from database"
+                            )
+                            df = asyncio.run(
+                                self._load_session_from_database(
+                                    case_number, trace_name, session_id
+                                )
+                            )
+
+                            if df is not None:
+                                self.session_frames = self._optimize_session_dtypes(df)
+                                logger.info(
+                                    f"Loaded session with {len(self.session_frames)} frames from database"
+                                )
+                                logger.info(
+                                    f"Session memory usage: {self.session_frames.memory_usage(deep=True).sum() / 1024**2:.2f} MB"
+                                )
+                                return True
+                            logger.debug("Session not in database, trying Parquet file")
+        except Exception as e:
+            logger.debug(f"Could not query database, falling back to Parquet file: {e}")
+
+        # Fallback to Parquet file
         try:
             session_path = os.path.join(output_dir, session_file)
 
