@@ -28,14 +28,14 @@ classifiers = [
 ]
 
 dependencies = [
-    "smbprotocol>=1.5.0",
-    "pandas>=1.3.0",
-    "pyarrow>=7.0.0",
-    "pyyaml>=6.0",
-    "click>=8.0.0",
-    "rich>=12.0.0",
-    "psutil>=5.8.0",
-    "psycopg[binary]>=3.1.0",  # Async PostgreSQL driver for database integration
+    "smbprotocol",
+    "pandas",
+    "pyarrow",
+    "pyyaml",
+    "click",
+    "rich",
+    "psutil",
+    "psycopg[binary]",  # Async PostgreSQL driver for database integration
 ]
 
 [project.optional-dependencies]
