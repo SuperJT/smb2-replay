@@ -19,6 +19,69 @@ from .constants import TSHARK_PATH
 logger = get_logger()
 
 
+def _sanitize_path_component(component: str) -> str:
+    """Sanitize a path component to prevent path traversal attacks.
+
+    Removes or replaces dangerous characters and sequences that could
+    allow escaping the intended directory structure.
+
+    Args:
+        component: A single path component (e.g., case_number, trace_name)
+
+    Returns:
+        Sanitized path component safe for use in file paths
+
+    Raises:
+        ValueError: If component is empty or contains only dangerous characters
+    """
+    if not component:
+        raise ValueError("Path component cannot be empty")
+
+    # Remove path separators and traversal sequences
+    sanitized = component.replace("/", "_").replace("\\", "_")
+    sanitized = sanitized.replace("..", "_")
+
+    # Remove null bytes (can truncate paths in some systems)
+    sanitized = sanitized.replace("\x00", "")
+
+    # Strip leading/trailing whitespace and dots (could be used for traversal)
+    sanitized = sanitized.strip(". \t\n\r")
+
+    if not sanitized:
+        raise ValueError(f"Path component '{component}' contains only invalid characters")
+
+    return sanitized
+
+
+def _validate_path_within_base(path: str, base_dir: str) -> bool:
+    """Validate that a path is within the expected base directory.
+
+    Uses realpath to resolve symlinks and ensure the final path
+    doesn't escape the allowed directory structure.
+
+    Args:
+        path: The path to validate
+        base_dir: The base directory that path must be within
+
+    Returns:
+        True if path is safely within base_dir
+
+    Raises:
+        ValueError: If path would escape base_dir
+    """
+    # Resolve to absolute paths, following symlinks
+    real_path = os.path.realpath(path)
+    real_base = os.path.realpath(base_dir)
+
+    # Check if the resolved path starts with the base directory
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        raise ValueError(
+            f"Path traversal detected: '{path}' resolves outside base directory '{base_dir}'"
+        )
+
+    return True
+
+
 def build_tshark_command(
     capture: str,
     fields: List[str],
@@ -539,18 +602,28 @@ def create_session_directory(
 
     Returns:
         Path to the session directory
+
+    Raises:
+        ValueError: If case_number or trace_name contain path traversal sequences
     """
     from .config import get_session_output_dir
 
     logger.info(f"Creating directory for case {case_number}, trace {trace_name}")
 
     try:
+        # Sanitize inputs to prevent path traversal attacks
+        safe_case_number = _sanitize_path_component(case_number)
+        safe_trace_name = _sanitize_path_component(trace_name.split(".")[0])
+
         # Use session_output_dir for writing processed data (writable location)
         session_output = get_session_output_dir()
-        base_dir = os.path.join(session_output, case_number)
+        base_dir = os.path.join(session_output, safe_case_number)
         tracer_dir = os.path.join(base_dir, ".tracer")
-        pcap_dir = os.path.join(tracer_dir, trace_name.split(".")[0])
+        pcap_dir = os.path.join(tracer_dir, safe_trace_name)
         output_dir = os.path.join(pcap_dir, "sessions")
+
+        # Validate the constructed path is within session_output (defense in depth)
+        _validate_path_within_base(output_dir, session_output)
 
         # Create directory structure
         os.makedirs(output_dir, exist_ok=True)
@@ -576,11 +649,17 @@ def create_session_directory(
         raise
 
 
-def clear_directory(directory: str):
+def clear_directory(directory: str, base_dir: str = None):
     """Clear all files in a directory.
 
     Args:
         directory: Directory path to clear
+        base_dir: Optional base directory to validate against. If provided,
+                  directory must be within base_dir (prevents path traversal).
+
+    Raises:
+        ValueError: If directory is outside base_dir when base_dir is provided
+        ValueError: If directory is a symlink (security risk)
     """
     logger.info(f"Clearing directory: {directory}")
 
@@ -589,12 +668,30 @@ def clear_directory(directory: str):
             logger.warning(f"Directory {directory} does not exist, nothing to clear")
             return
 
+        # Security: Reject symlinks to prevent following to unintended locations
+        if os.path.islink(directory):
+            raise ValueError(f"Refusing to clear symlink directory: {directory}")
+
+        # Security: Validate directory is within expected base (if provided)
+        if base_dir:
+            _validate_path_within_base(directory, base_dir)
+        else:
+            # If no base_dir provided, at minimum validate it's within session output
+            from .config import get_session_output_dir
+            session_output = get_session_output_dir()
+            _validate_path_within_base(directory, session_output)
+
         import glob
         import shutil
 
         files_to_remove = glob.glob(os.path.join(directory, "*"))
         for file_path in files_to_remove:
             try:
+                # Skip symlinks for safety
+                if os.path.islink(file_path):
+                    logger.warning(f"Skipping symlink: {file_path}")
+                    continue
+
                 if os.path.isfile(file_path):
                     os.remove(file_path)
                     logger.debug(f"Removed file: {file_path}")

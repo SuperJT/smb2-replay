@@ -17,7 +17,33 @@ cd "$PROJECT_DIR"
 # Install UV if not present
 if ! command -v uv &> /dev/null; then
     echo "📦 UV not found. Installing UV..."
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+
+    # Security: Download script first, inspect, then execute (instead of curl | sh)
+    UV_INSTALL_SCRIPT=$(mktemp)
+    trap "rm -f $UV_INSTALL_SCRIPT" EXIT
+
+    echo "   Downloading UV installer..."
+    if ! curl -LsSf https://astral.sh/uv/install.sh -o "$UV_INSTALL_SCRIPT"; then
+        echo "❌ Failed to download UV installer"
+        exit 1
+    fi
+
+    # Basic validation: check it's a shell script and not suspiciously large
+    if [ ! -s "$UV_INSTALL_SCRIPT" ]; then
+        echo "❌ Downloaded installer is empty"
+        exit 1
+    fi
+
+    SCRIPT_SIZE=$(wc -c < "$UV_INSTALL_SCRIPT")
+    if [ "$SCRIPT_SIZE" -gt 100000 ]; then
+        echo "⚠️  Warning: Installer script is larger than expected ($SCRIPT_SIZE bytes)"
+        echo "   Please review: $UV_INSTALL_SCRIPT"
+        echo "   Or install manually: https://docs.astral.sh/uv/getting-started/installation/"
+        exit 1
+    fi
+
+    echo "   Running UV installer..."
+    sh "$UV_INSTALL_SCRIPT"
 
     # Add to PATH for this session
     export PATH="$HOME/.cargo/bin:$PATH"

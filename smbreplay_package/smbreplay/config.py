@@ -434,7 +434,7 @@ class ConfigManager:
         self._ensure_config_loaded()
         self.replay_config["password"] = password
         self.save_config()
-        self.logger.info(f"Set password to {password}")
+        self.logger.info(f"Set password to **********")
 
     def get_tree_name(self) -> str:
         """Get the replay server tree/share name."""

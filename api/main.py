@@ -6,12 +6,15 @@ Enables Next.js and other clients to interact with SMB replay functionality.
 
 import logging
 import os
+import secrets
 import sys
 from contextlib import asynccontextmanager
+from typing import Optional
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Security, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import APIKeyHeader
 
 # Add smbreplay package to path before importing routes
 sys.path.insert(
@@ -27,6 +30,80 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Security Configuration
+# =============================================================================
+
+# API Key Authentication (optional - set API_KEY env var to enable)
+API_KEY: Optional[str] = os.getenv("API_KEY")
+API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def verify_api_key(api_key: Optional[str] = Security(API_KEY_HEADER)) -> bool:
+    """Verify API key if authentication is enabled.
+
+    If API_KEY environment variable is not set, authentication is disabled
+    and all requests are allowed (for backward compatibility).
+
+    Returns:
+        True if authenticated or auth disabled
+
+    Raises:
+        HTTPException: 401 if API key is invalid or missing when auth is enabled
+    """
+    # If no API_KEY configured, auth is disabled
+    if API_KEY is None:
+        return True
+
+    # API key is required but not provided
+    if api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key required. Provide X-API-Key header.",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+
+    # Validate API key using constant-time comparison to prevent timing attacks
+    if not secrets.compare_digest(api_key, API_KEY):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+
+    return True
+
+
+# CORS Configuration
+def get_cors_origins() -> list[str]:
+    """Get allowed CORS origins from environment.
+
+    Set CORS_ORIGINS env var as comma-separated list of origins.
+    Examples:
+        - CORS_ORIGINS=http://localhost:3000,https://myapp.com
+        - CORS_ORIGINS=* (allow all - NOT recommended for production)
+
+    Defaults to localhost development origins if not set.
+    """
+    origins_env = os.getenv("CORS_ORIGINS")
+
+    if origins_env:
+        return [origin.strip() for origin in origins_env.split(",")]
+
+    # Default: common development origins
+    return [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ]
+
+
+CORS_ORIGINS = get_cors_origins()
+# Don't allow credentials with wildcard origin (browsers reject this anyway)
+CORS_ALLOW_CREDENTIALS = "*" not in CORS_ORIGINS
 
 
 @asynccontextmanager
@@ -45,6 +122,12 @@ async def lifespan(app: FastAPI):
         logger.warning("Service started in degraded mode - tshark unavailable, some features may be limited")
     else:
         logger.info("Service started successfully")
+
+    # Log security configuration
+    if API_KEY:
+        logger.info("API key authentication ENABLED")
+    else:
+        logger.warning("API key authentication DISABLED - set API_KEY env var to enable")
 
     yield
 
@@ -67,13 +150,27 @@ Provides endpoints for:
 
 ## Authentication
 
-This API is designed for trusted environments and does not require authentication.
+API key authentication is **optional** and controlled via the `API_KEY` environment variable:
+
+- **Disabled (default)**: If `API_KEY` is not set, all requests are allowed
+- **Enabled**: Set `API_KEY=your-secret-key` to require authentication
+
+When enabled, clients must include the `X-API-Key` header with every request:
+```
+X-API-Key: your-secret-key
+```
+
+## CORS
+
+Cross-Origin Resource Sharing is configurable via `CORS_ORIGINS` environment variable:
+- Set as comma-separated list: `CORS_ORIGINS=http://localhost:3000,https://app.example.com`
+- Default: Common localhost development origins (3000, 3001, 5173)
 
 ## Rate Limiting
 
 No rate limiting is implemented. Consider adding rate limiting for production deployments.
     """,
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -83,11 +180,12 @@ No rate limiting is implemented. Consider adding rate limiting for production de
 # Add CORS middleware for cross-origin requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=CORS_ALLOW_CREDENTIALS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+logger.info(f"CORS configured for origins: {CORS_ORIGINS}")
 
 
 # Global exception handler for service errors
@@ -118,22 +216,26 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 
 # Include routers
+# Health endpoint is public (no auth required for monitoring)
 app.include_router(health.router)
-app.include_router(config.router)
-app.include_router(traces.router)
-app.include_router(sessions.router)
-app.include_router(replay.router)
+
+# Protected routes require API key when authentication is enabled
+app.include_router(config.router, dependencies=[Depends(verify_api_key)])
+app.include_router(traces.router, dependencies=[Depends(verify_api_key)])
+app.include_router(sessions.router, dependencies=[Depends(verify_api_key)])
+app.include_router(replay.router, dependencies=[Depends(verify_api_key)])
 
 
-# Root endpoint
+# Root endpoint (public - provides basic API info)
 @app.get("/", tags=["root"])
 def root():
     """Root endpoint with API information."""
     return {
         "name": "SMB Replay API",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "docs": "/docs",
         "health": "/health",
+        "auth_enabled": API_KEY is not None,
     }
 
 

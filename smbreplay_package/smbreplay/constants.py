@@ -322,10 +322,27 @@ def generate_smb2_fields(force_regenerate: bool = False) -> List[str]:
         if not check_tshark_availability():
             raise RuntimeError("Local tshark is not available")
 
-        cmd = f"{TSHARK_PATH} -G fields | grep smb2 > {smb2_fields_file}"
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise RuntimeError(f"Failed to generate {smb2_fields_file}")
+        # Security: Use subprocess without shell=True to prevent command injection
+        # Run tshark to get all fields
+        tshark_result = subprocess.run(
+            [TSHARK_PATH, "-G", "fields"],
+            capture_output=True,
+            text=True
+        )
+        if tshark_result.returncode != 0:
+            raise RuntimeError(f"tshark -G fields failed: {tshark_result.stderr}")
+
+        # Filter for smb2 fields in Python (instead of piping to grep)
+        smb2_lines = [
+            line for line in tshark_result.stdout.splitlines()
+            if "smb2" in line.lower()
+        ]
+
+        # Write filtered results to file
+        with open(smb2_fields_file, "w") as f:
+            f.write("\n".join(smb2_lines))
+            if smb2_lines:
+                f.write("\n")
 
     with open(smb2_fields_file, "r") as f:
         smb2_field_lines = f.readlines()

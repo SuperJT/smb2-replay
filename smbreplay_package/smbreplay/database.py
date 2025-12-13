@@ -71,7 +71,6 @@ class DatabaseClient:
         """
         self.connection_string = connection_string or os.getenv(
             "DATABASE_URL",
-            "postgresql://tracer:changeme@localhost:5432/tracer",
         )
         logger.info("Initialized database client")
 

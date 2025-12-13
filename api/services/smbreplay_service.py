@@ -258,6 +258,16 @@ class SMBReplayService:
             if effective_case_id:
                 path = os.path.join(traces_folder, effective_case_id, path)
 
+        # Security: Validate path doesn't escape allowed directories
+        traces_folder = self.system.config.get_traces_folder()
+        real_path = os.path.realpath(path)
+        real_traces = os.path.realpath(traces_folder)
+        if not real_path.startswith(real_traces + os.sep) and real_path != real_traces:
+            raise SMBReplayServiceError(
+                f"Path traversal detected: path must be within traces folder",
+                code="PATH_TRAVERSAL"
+            )
+
         result = self.system.ingest_pcap(
             path, force_reingest=force, reassembly=reassembly
         )
