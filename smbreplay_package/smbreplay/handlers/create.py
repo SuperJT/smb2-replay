@@ -113,15 +113,14 @@ def handle_create(
         logger.error(f"Create failed for {rel_filename}: {e}")
         self.state["last_new_fid"] = None
         # Extract NT status from error message
-        actual_status = "0x00000000"
-        if "STATUS_" in str(e):
-            # Try to extract status code from error message
-            error_str = str(e)
-            if "0x" in error_str:
-                import re
+        # Default to STATUS_UNSUCCESSFUL (0xC0000001) - never claim success on exception
+        actual_status = "0xC0000001"
+        error_str = str(e)
+        if "0x" in error_str:
+            import re
 
-                hex_match = re.search(r"0x[0-9a-fA-F]{8}", error_str)
-                if hex_match:
-                    actual_status = hex_match.group(0)
+            hex_match = re.search(r"0x[0-9a-fA-F]{8}", error_str)
+            if hex_match:
+                actual_status = hex_match.group(0)
         # Validate response against expected status
-        self.validate_response(op, actual_status, str(e))
+        self.validate_response(op, actual_status, error_str)
