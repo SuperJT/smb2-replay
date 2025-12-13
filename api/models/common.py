@@ -7,7 +7,10 @@ from pydantic import BaseModel, Field, field_validator
 
 
 # Path traversal prevention pattern
-PATH_TRAVERSAL_PATTERN = re.compile(r"(\.\.|/\.\.|\.\./)|(^/)|(\x00)")
+# Detects: "..", "/..", "../", and null bytes
+# Note: Absolute paths (starting with /) are allowed - they're validated
+# against TRACES_FOLDER at the service layer
+PATH_TRAVERSAL_PATTERN = re.compile(r"(\.\.|/\.\.|\.\./)|\x00")
 
 
 def validate_safe_path(value: Optional[str], field_name: str = "path") -> Optional[str]:
