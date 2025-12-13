@@ -21,6 +21,12 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+class LockNotSupportedError(Exception):
+    """Raised when lock operations are not supported due to missing dependencies."""
+
+    pass
+
+
 def handle_lock(replayer, op: Dict[str, Any], **kwargs):
     """Handle Lock operation using smbprotocol Open object.
 
@@ -28,13 +34,17 @@ def handle_lock(replayer, op: Dict[str, Any], **kwargs):
         replayer: SMB2Replayer instance
         op: Operation dictionary containing lock parameters
         **kwargs: Additional context
+
+    Raises:
+        LockNotSupportedError: If smbprotocol lock support is not available
     """
     if not LOCK_SUPPORT_AVAILABLE:
-        replayer.logger.warning(
+        msg = (
             "Lock operations require smbprotocol from GitHub. "
             "Install with: pip install --upgrade git+https://github.com/jborean93/smbprotocol.git"
         )
-        return
+        replayer.logger.error(msg)
+        raise LockNotSupportedError(msg)
 
     original_fid = op.get("smb2.fid", "")
     file_open = replayer.fid_mapping.get(original_fid)

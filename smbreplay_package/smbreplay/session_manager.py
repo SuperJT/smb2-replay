@@ -735,7 +735,9 @@ class SessionManager:
                             filtered_frames[field].astype("object").apply(normalize)
                         )
                         # Only convert back to categorical if it makes sense (few unique values)
-                        if temp_series.nunique() / len(temp_series) < 0.5:
+                        # Guard against division by zero when series is empty
+                        series_len = len(temp_series)
+                        if series_len > 0 and temp_series.nunique() / series_len < 0.5:
                             filtered_frames[field] = temp_series.astype("category")
                         else:
                             filtered_frames[field] = temp_series

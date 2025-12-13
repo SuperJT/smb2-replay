@@ -189,7 +189,9 @@ def extract_sessions_from_dataframe_optimized(
             )
 
         # Efficient boolean indexing
-        session_mask = df_sesids_normalized.apply(lambda x: sesid in x if x else False)
+        # Use 'x is not None' instead of 'if x' to handle empty sets correctly
+        # (empty set() is falsy but still valid for 'in' check)
+        session_mask = df_sesids_normalized.apply(lambda x: sesid in x if x is not None else False)
         session_df = df[session_mask].copy()
 
         if not session_df.empty:
@@ -428,16 +430,32 @@ def normalize_cmd(cmd_str) -> set[str]:
     """Normalize smb2.cmd values, handling lists and commas, returns set[str]."""
     logger.debug(f"Normalizing cmd: {str(cmd_str)[:200]}")
     try:
-        if (
-            pd.isna(cmd_str).any()
-            if isinstance(cmd_str, (list, pd.Series, set))
-            else pd.isna(cmd_str)
-        ):
+        # Handle None and NaN values
+        if cmd_str is None:
             return set()
+        # For pd.Series, use .any() to check if any values are NA
+        if isinstance(cmd_str, pd.Series):
+            if pd.isna(cmd_str).any():
+                return set()
+        # For lists, check each element
+        elif isinstance(cmd_str, list):
+            if all(pd.isna(item) for item in cmd_str):
+                return set()
+        # For sets, convert to list first (pd.isna doesn't handle sets well)
+        elif isinstance(cmd_str, set):
+            if not cmd_str:  # Empty set
+                return set()
+            # Filter out None/NaN values from the set
+            valid_items = {item for item in cmd_str if item is not None and not (isinstance(item, float) and pd.isna(item))}
+            return {str(item).strip() for item in valid_items if item}
+        # For scalar values
+        elif pd.isna(cmd_str):
+            return set()
+
         if not cmd_str:
             return set()
         if isinstance(cmd_str, (list, set)):
-            return {item.strip() for item in cmd_str if item}
+            return {str(item).strip() for item in cmd_str if item}
         return {item.strip() for item in str(cmd_str).split(",") if item}
     except Exception as e:
         logger.critical(f"Error in normalize_cmd: {str(e)}\n{traceback.format_exc()}")

@@ -1589,14 +1589,21 @@ def _main_impl():
                 )
                 sys.exit(1)
 
-        # If session_file is provided and does not end with .parquet, treat as session ID and construct proper filename
+        # If session_file is provided and does not end with .parquet, treat as session ID
         if session_file and not session_file.endswith(".parquet"):
             session_id = session_file  # Store the original session ID
-            session_file = f"smb2_session_{session_file}.parquet"
+            # Only add prefix if not already prefixed (avoid smb2_session_smb2_session_*)
+            if not session_file.startswith("smb2_session_"):
+                session_file = f"smb2_session_{session_file}.parquet"
+            else:
+                session_file = f"{session_file}.parquet"
 
-        # If --session-id is provided, override session_file
-        if session_id and session_id != session_file:
-            session_file = f"smb2_session_{session_id}.parquet"
+        # If --session-id is explicitly provided but session_file wasn't set from it above
+        elif session_id and not session_file:
+            if session_id.startswith("smb2_session_"):
+                session_file = f"{session_id}.parquet"
+            else:
+                session_file = f"smb2_session_{session_id}.parquet"
 
         if not session_file:
             safe_print("Error: No session file or session ID provided")

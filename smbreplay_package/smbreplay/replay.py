@@ -139,9 +139,14 @@ class SMB2Replayer:
 
         expected_status = operation.get("smb2.nt_status", "N/A")
         # Defensive: ensure both are strings for .startswith
-        if not isinstance(expected_status, str):
+        # Handle None explicitly to avoid "None" string
+        if expected_status is None:
+            expected_status = "N/A"
+        elif not isinstance(expected_status, str):
             expected_status = str(expected_status)
-        if not isinstance(actual_status, str):
+        if actual_status is None:
+            actual_status = "N/A"
+        elif not isinstance(actual_status, str):
             actual_status = str(actual_status)
         frame_number = operation.get("Frame", "N/A")
         command = operation.get("Command", "Unknown")
@@ -323,8 +328,9 @@ class SMB2Replayer:
                     logger.debug(
                         f"Empty create.action for msg_id {msg_id} in response frame {resp_op.get('Frame')} with status {nt_status}"
                     )
-                    # For failed operations, we can't determine the type/action, so return defaults
-                    return "file", "open"
+                    # For failed operations, indicate failure explicitly
+                    # Return "unknown" type and "failed" action to distinguish from successful opens
+                    return "unknown", "failed"
 
                 if create_action == "FILE_CREATED":
                     return "file", "create"
