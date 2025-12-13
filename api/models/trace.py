@@ -2,7 +2,9 @@
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from .common import validate_safe_identifier, validate_safe_path
 
 
 class TraceFile(BaseModel):
@@ -30,6 +32,18 @@ class IngestRequest(BaseModel):
     case_id: Optional[str] = Field(
         None, description="Case ID (required for relative paths)"
     )
+
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, v):
+        """Validate path doesn't contain traversal sequences."""
+        return validate_safe_path(v, "path")
+
+    @field_validator("case_id")
+    @classmethod
+    def validate_case_id(cls, v):
+        """Validate case_id is a safe identifier."""
+        return validate_safe_identifier(v, "case_id")
 
 
 class IngestResult(BaseModel):

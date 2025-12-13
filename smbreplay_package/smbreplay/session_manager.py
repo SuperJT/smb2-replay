@@ -863,21 +863,28 @@ class SessionManager:
             # Get command name using the same logic as vectorized method
             try:
                 if cmd and pd.notna(cmd):
-                    # Use SMB2_OP_NAME_DESC directly for simplicity
-                    cmd_int = int(
-                        float(
-                            str(cmd)
-                            .split(",")[0]
-                            .strip()
-                            .replace("{", "")
-                            .replace("}", "")
-                            .replace("'", "")
-                        )
+                    # Clean the command string first
+                    cmd_cleaned = (
+                        str(cmd)
+                        .split(",")[0]
+                        .strip()
+                        .replace("{", "")
+                        .replace("}", "")
+                        .replace("'", "")
                     )
+                    # Parse as integer directly, avoiding masked float conversion
+                    # Handle hex strings (0x...) and decimal strings
+                    if cmd_cleaned.startswith("0x"):
+                        cmd_int = int(cmd_cleaned, 16)
+                    elif "." in cmd_cleaned:
+                        # Only use float conversion if there's a decimal point
+                        cmd_int = int(float(cmd_cleaned))
+                    else:
+                        cmd_int = int(cmd_cleaned)
                     op_name = SMB2_OP_NAME_DESC.get(cmd_int, (f"UNKNOWN({cmd})", ""))[0]
                 else:
                     op_name = "UNKNOWN"
-            except Exception as e:
+            except (ValueError, TypeError) as e:
                 logger.debug(f"Error translating command {cmd}: {e}")
                 op_name = f"UNKNOWN({cmd})" if cmd else "UNKNOWN"
 
@@ -994,9 +1001,20 @@ class SessionManager:
             for cmd_str in cmd_values:
                 try:
                     if isinstance(cmd_str, list):
-                        cmd_ints = [int(c) for c in cmd_str if str(c).isdigit()]
+                        # Try to convert each element, handling various formats
+                        cmd_ints = []
+                        for c in cmd_str:
+                            try:
+                                cmd_ints.append(int(c))
+                            except (ValueError, TypeError):
+                                pass
                     else:
-                        cmd_ints = [int(cmd_str)] if str(cmd_str).isdigit() else []
+                        # Try direct int conversion instead of isdigit() check
+                        # isdigit() fails for "-1", "0x10", "1.0" which int() can handle
+                        try:
+                            cmd_ints = [int(cmd_str)]
+                        except (ValueError, TypeError):
+                            cmd_ints = []
 
                     for cmd_int in cmd_ints:
                         if cmd_int in SMB2_OP_NAME_DESC:

@@ -808,7 +808,17 @@ class SMB2Replayer:
         self.config._load_config()  # Force reload from disk
         replay_config = self.get_replay_config()
         server_ip = replay_config.get("server_ip", "127.0.0.1")
-        port = int(replay_config.get("port", 445))
+
+        # Validate and convert port with bounds checking
+        try:
+            port = int(replay_config.get("port", 445))
+        except (ValueError, TypeError):
+            logger.warning("Invalid port value, using default 445")
+            port = 445
+        if port < 1 or port > 65535:
+            logger.warning(f"Port {port} out of valid range (1-65535), using default 445")
+            port = 445
+
         domain = replay_config.get("domain", "")
         username = replay_config.get("username", "testuser")
         password = replay_config.get("password", "PASSWORD")

@@ -3,11 +3,38 @@ import math
 import logging
 from smbprotocol.exceptions import SMBException
 from smbprotocol.open import Open
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from smbreplay.utils import get_share_relative_path
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_int(value: Any, default: int, field_name: str = "field") -> int:
+    """Safely convert a value to int with error handling.
+
+    Args:
+        value: Value to convert (may be str, int, float, hex string, or None)
+        default: Default value if conversion fails
+        field_name: Name of the field for logging
+
+    Returns:
+        Integer value or default
+    """
+    if value is None:
+        return default
+    try:
+        # Handle hex strings like "0x80000000"
+        if isinstance(value, str):
+            value = value.strip()
+            if value.startswith("0x") or value.startswith("0X"):
+                return int(value, 16)
+            elif value.startswith("-0x") or value.startswith("-0X"):
+                return -int(value[1:], 16)
+        return int(value)
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Invalid {field_name} value '{value}': {e}, using default {default}")
+        return default
 
 
 def handle_create(
@@ -48,23 +75,25 @@ def handle_create(
             op, all_operations
         )
 
-    # Read all create parameters from the operation data
-    impersonation_level = int(
-        op.get("smb2.impersonation_level", 0)
+    # Read all create parameters from the operation data with safe conversion
+    impersonation_level = _safe_int(
+        op.get("smb2.impersonation_level"), 0, "impersonation_level"
     )  # Default SECURITY_ANONYMOUS
-    desired_access = int(
-        op.get("smb2.desired_access", 0x80000000 | 0x40000000)
+    desired_access = _safe_int(
+        op.get("smb2.desired_access"), 0x80000000 | 0x40000000, "desired_access"
     )  # Default GENERIC_READ | GENERIC_WRITE
-    file_attributes = int(
-        op.get("smb2.file_attributes", 0)
+    file_attributes = _safe_int(
+        op.get("smb2.file_attributes"), 0, "file_attributes"
     )  # Default FILE_ATTRIBUTE_NORMAL
-    share_access = int(
-        op.get("smb2.share_access", 0x00000001)
+    share_access = _safe_int(
+        op.get("smb2.share_access"), 0x00000001, "share_access"
     )  # Default FILE_SHARE_READ
-    create_disposition = int(
-        op.get("smb2.create_disposition", 2)
+    create_disposition = _safe_int(
+        op.get("smb2.create_disposition"), 2, "create_disposition"
     )  # Default FILE_CREATE
-    create_options = int(op.get("smb2.create_options", 0))  # Default no special options
+    create_options = _safe_int(
+        op.get("smb2.create_options"), 0, "create_options"
+    )  # Default no special options
 
     # Adjust parameters based on create type
     if create_type == "directory":

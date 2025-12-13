@@ -132,10 +132,23 @@ class ConfigManager:
             self._logger = self._setup_logging()
         return self._logger
 
+    def _validate_config_value(self, value, allowed_types=(str, int, float, bool, type(None))):
+        """Validate that a config value is a safe primitive type.
+
+        Args:
+            value: Value to validate
+            allowed_types: Tuple of allowed types
+
+        Returns:
+            True if value is safe, False otherwise
+        """
+        return isinstance(value, allowed_types)
+
     def _load_config(self):
         """Load configuration from pickle file if it exists.
 
         Thread-safe: Uses file lock to prevent reading while another thread writes.
+        Validates loaded data types to prevent pickle deserialization attacks.
         """
         with self._file_lock:
             if os.path.exists(self.config_file):
@@ -143,35 +156,47 @@ class ConfigManager:
                     with open(self.config_file, "rb") as f:
                         loaded_config = pickle.load(f)
 
+                    # Validate that loaded_config is a dict (prevent arbitrary object attacks)
+                    if not isinstance(loaded_config, dict):
+                        print(f"Warning: Invalid config format in {self.config_file}, using defaults")
+                        return
+
                     if "pcap_config" in loaded_config:
-                        self.pcap_config.update(
-                            {
-                                k: v
-                                for k, v in loaded_config["pcap_config"].items()
-                                if k in self.pcap_config
-                            }
-                        )
+                        pcap_data = loaded_config["pcap_config"]
+                        if isinstance(pcap_data, dict):
+                            # Only update with validated primitive values
+                            self.pcap_config.update(
+                                {
+                                    k: v
+                                    for k, v in pcap_data.items()
+                                    if k in self.pcap_config and self._validate_config_value(v)
+                                }
+                            )
 
                     if "replay_config" in loaded_config:
-                        self.replay_config.update(
-                            {
-                                k: v
-                                for k, v in loaded_config["replay_config"].items()
-                                if k in self.replay_config
-                            }
-                        )
+                        replay_data = loaded_config["replay_config"]
+                        if isinstance(replay_data, dict):
+                            # Only update with validated primitive values
+                            self.replay_config.update(
+                                {
+                                    k: v
+                                    for k, v in replay_data.items()
+                                    if k in self.replay_config and self._validate_config_value(v)
+                                }
+                            )
 
                     # Load session management fields
+                    # Use truthy check to treat falsy values (0, "", None) as None
+                    # since 0 and "" are not valid identifiers
                     session_id = loaded_config.get("current_session_id")
-                    self.current_session_id = (
-                        str(session_id) if session_id is not None else None
-                    )
+                    if self._validate_config_value(session_id):
+                        self.current_session_id = str(session_id) if session_id else None
                     case_id = loaded_config.get("current_case_id")
-                    self.current_case_id = str(case_id) if case_id is not None else None
+                    if self._validate_config_value(case_id):
+                        self.current_case_id = str(case_id) if case_id else None
                     trace_name = loaded_config.get("current_trace_name")
-                    self.current_trace_name = (
-                        str(trace_name) if trace_name is not None else None
-                    )
+                    if self._validate_config_value(trace_name):
+                        self.current_trace_name = str(trace_name) if trace_name else None
 
                     # Only print in debug mode to avoid noise
                     if self.pcap_config.get("verbose_level", 0) >= 2:

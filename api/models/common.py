@@ -1,8 +1,70 @@
 """Common models shared across the API."""
 
+import re
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+# Path traversal prevention pattern
+PATH_TRAVERSAL_PATTERN = re.compile(r"(\.\.|/\.\.|\.\./)|(^/)|(\x00)")
+
+
+def validate_safe_path(value: Optional[str], field_name: str = "path") -> Optional[str]:
+    """Validate that a path doesn't contain traversal sequences.
+
+    Args:
+        value: Path string to validate
+        field_name: Name of field for error messages
+
+    Returns:
+        Original value if safe
+
+    Raises:
+        ValueError: If path contains traversal sequences
+    """
+    if value is None:
+        return value
+
+    if PATH_TRAVERSAL_PATTERN.search(value):
+        raise ValueError(
+            f"{field_name} contains invalid characters or path traversal sequences"
+        )
+
+    # Check for null bytes which can truncate paths
+    if "\x00" in value:
+        raise ValueError(f"{field_name} contains null bytes")
+
+    return value
+
+
+def validate_safe_identifier(value: Optional[str], field_name: str = "identifier") -> Optional[str]:
+    """Validate that an identifier is safe (alphanumeric with limited special chars).
+
+    Args:
+        value: Identifier to validate
+        field_name: Name of field for error messages
+
+    Returns:
+        Original value if safe
+
+    Raises:
+        ValueError: If identifier contains unsafe characters
+    """
+    if value is None:
+        return value
+
+    # Allow alphanumeric, underscore, hyphen, and dot (for file extensions)
+    if not re.match(r"^[\w\-\.]+$", value):
+        raise ValueError(
+            f"{field_name} contains invalid characters (only alphanumeric, _, -, . allowed)"
+        )
+
+    # Prevent hidden files and traversal
+    if value.startswith(".") or ".." in value:
+        raise ValueError(f"{field_name} cannot start with '.' or contain '..'")
+
+    return value
 
 
 class ErrorResponse(BaseModel):

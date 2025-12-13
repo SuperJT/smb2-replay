@@ -2,7 +2,9 @@
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from .common import validate_safe_identifier, validate_safe_path
 
 
 class SessionSummary(BaseModel):
@@ -56,6 +58,18 @@ class OperationsRequest(BaseModel):
     file_filter: Optional[str] = Field(None, description="Filter by specific file path")
     fields: Optional[List[str]] = Field(None, description="Specific fields to include")
     capture_path: Optional[str] = Field(None, description="Override capture path")
+
+    @field_validator("file_filter")
+    @classmethod
+    def validate_file_filter(cls, v):
+        """Validate file_filter doesn't contain path traversal."""
+        return validate_safe_path(v, "file_filter")
+
+    @field_validator("capture_path")
+    @classmethod
+    def validate_capture_path(cls, v):
+        """Validate capture_path doesn't contain path traversal."""
+        return validate_safe_path(v, "capture_path")
 
 
 class OperationsResponse(BaseModel):
