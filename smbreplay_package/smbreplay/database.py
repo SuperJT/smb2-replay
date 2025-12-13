@@ -11,7 +11,8 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,43 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from .config import get_logger
+
+
+def _sanitize_connection_string(conn_string: str) -> Tuple[str, Optional[str]]:
+    """Remove Prisma-specific query parameters from PostgreSQL connection string.
+
+    Prisma uses `?schema=name` to specify the PostgreSQL schema, but psycopg3
+    doesn't recognize this parameter. This function extracts it so we can set
+    search_path manually after connecting.
+
+    Args:
+        conn_string: PostgreSQL connection string (possibly with Prisma params)
+
+    Returns:
+        Tuple of (sanitized_connection_string, schema_name or None)
+    """
+    parsed = urlparse(conn_string)
+    query_params = parse_qs(parsed.query)
+
+    # Extract schema if present
+    schema = query_params.pop("schema", [None])[0]
+
+    # Rebuild query string without schema parameter
+    new_query = urlencode(query_params, doseq=True)
+
+    # Reconstruct the URL
+    sanitized = urlunparse(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            new_query,
+            parsed.fragment,
+        )
+    )
+
+    return sanitized, schema
 
 # Module-level connection pool (singleton pattern)
 _pool: Optional[AsyncConnectionPool] = None
@@ -103,17 +141,23 @@ class DatabaseClient:
             connection_timeout: Timeout for acquiring connection from pool (default 30s)
             query_timeout: Timeout for query execution (default 60s)
         """
-        self.connection_string = connection_string or os.getenv(
-            "DATABASE_URL",
+        raw_conn_string = connection_string or os.getenv("DATABASE_URL", "")
+
+        # Sanitize connection string to remove Prisma-specific params
+        self.connection_string, self._schema = _sanitize_connection_string(
+            raw_conn_string
         )
+
         self.min_size = min_size
         self.max_size = max_size
         self.connection_timeout = connection_timeout
         self.query_timeout = query_timeout
         self._pool: Optional[AsyncConnectionPool] = None
+
+        schema_info = f", schema={self._schema}" if self._schema else ""
         logger.info(
             f"Initialized database client (pool: min={min_size}, max={max_size}, "
-            f"conn_timeout={connection_timeout}s, query_timeout={query_timeout}s)"
+            f"conn_timeout={connection_timeout}s, query_timeout={query_timeout}s{schema_info})"
         )
 
     async def _get_pool(self) -> AsyncConnectionPool:
@@ -135,16 +179,30 @@ class DatabaseClient:
         async with _get_pool_lock():
             # Double-check after acquiring lock
             if _pool is None:
+                # Create configure callback if schema is specified
+                # This sets search_path on each new connection (Prisma compatibility)
+                configure = None
+                if self._schema:
+
+                    async def configure(conn: Any) -> None:
+                        await conn.execute(
+                            sql.SQL("SET search_path TO {}").format(
+                                sql.Identifier(self._schema)
+                            )
+                        )
+
                 _pool = AsyncConnectionPool(
                     self.connection_string,
                     min_size=self.min_size,
                     max_size=self.max_size,
                     timeout=self.connection_timeout,
                     kwargs={"row_factory": dict_row},
+                    configure=configure,
                     open=False,  # Don't open immediately
                 )
                 await _pool.open()
-                logger.info("Database connection pool opened")
+                schema_msg = f" (schema: {self._schema})" if self._schema else ""
+                logger.info(f"Database connection pool opened{schema_msg}")
             return _pool
 
     @asynccontextmanager
