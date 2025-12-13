@@ -7,6 +7,7 @@ import logging
 import os
 import pickle
 import sys
+import threading
 from typing import List, Optional, TypedDict
 
 # Default configurations
@@ -102,6 +103,9 @@ class ConfigManager:
         self.operations: List[dict] = []
         self.all_cells_run = False
 
+        # Lock for config file operations (load/save)
+        self._file_lock = threading.Lock()
+
     def _ensure_dirs_created(self):
         """Ensure config and traces directories are created (lazy initialization)."""
         if not self._dirs_created:
@@ -129,50 +133,54 @@ class ConfigManager:
         return self._logger
 
     def _load_config(self):
-        """Load configuration from pickle file if it exists."""
-        if os.path.exists(self.config_file):
-            try:
-                with open(self.config_file, "rb") as f:
-                    loaded_config = pickle.load(f)
+        """Load configuration from pickle file if it exists.
 
-                if "pcap_config" in loaded_config:
-                    self.pcap_config.update(
-                        {
-                            k: v
-                            for k, v in loaded_config["pcap_config"].items()
-                            if k in self.pcap_config
-                        }
+        Thread-safe: Uses file lock to prevent reading while another thread writes.
+        """
+        with self._file_lock:
+            if os.path.exists(self.config_file):
+                try:
+                    with open(self.config_file, "rb") as f:
+                        loaded_config = pickle.load(f)
+
+                    if "pcap_config" in loaded_config:
+                        self.pcap_config.update(
+                            {
+                                k: v
+                                for k, v in loaded_config["pcap_config"].items()
+                                if k in self.pcap_config
+                            }
+                        )
+
+                    if "replay_config" in loaded_config:
+                        self.replay_config.update(
+                            {
+                                k: v
+                                for k, v in loaded_config["replay_config"].items()
+                                if k in self.replay_config
+                            }
+                        )
+
+                    # Load session management fields
+                    session_id = loaded_config.get("current_session_id")
+                    self.current_session_id = (
+                        str(session_id) if session_id is not None else None
+                    )
+                    case_id = loaded_config.get("current_case_id")
+                    self.current_case_id = str(case_id) if case_id is not None else None
+                    trace_name = loaded_config.get("current_trace_name")
+                    self.current_trace_name = (
+                        str(trace_name) if trace_name is not None else None
                     )
 
-                if "replay_config" in loaded_config:
-                    self.replay_config.update(
-                        {
-                            k: v
-                            for k, v in loaded_config["replay_config"].items()
-                            if k in self.replay_config
-                        }
-                    )
+                    # Only print in debug mode to avoid noise
+                    if self.pcap_config.get("verbose_level", 0) >= 2:
+                        print(f"Loaded config from {self.config_file}")
 
-                # Load session management fields
-                session_id = loaded_config.get("current_session_id")
-                self.current_session_id = (
-                    str(session_id) if session_id is not None else None
-                )
-                case_id = loaded_config.get("current_case_id")
-                self.current_case_id = str(case_id) if case_id is not None else None
-                trace_name = loaded_config.get("current_trace_name")
-                self.current_trace_name = (
-                    str(trace_name) if trace_name is not None else None
-                )
-
-                # Only print in debug mode to avoid noise
-                if self.pcap_config.get("verbose_level", 0) >= 2:
-                    print(f"Loaded config from {self.config_file}")
-
-            except (pickle.PickleError, IOError) as e:
-                # Only print errors in debug mode
-                if self.pcap_config.get("verbose_level", 0) >= 1:
-                    print(f"Failed to load {self.config_file}: {e}. Using defaults.")
+                except (pickle.PickleError, IOError) as e:
+                    # Only print errors in debug mode
+                    if self.pcap_config.get("verbose_level", 0) >= 1:
+                        print(f"Failed to load {self.config_file}: {e}. Using defaults.")
 
     def _setup_logging(self) -> logging.Logger:
         """Set up logging configuration."""
@@ -222,23 +230,27 @@ class ConfigManager:
         return logger
 
     def save_config(self):
-        """Save current configuration to pickle file."""
+        """Save current configuration to pickle file.
+
+        Thread-safe: Uses file lock to prevent writing while another thread reads.
+        """
         self._ensure_dirs_created()  # Create dirs only when saving
-        try:
-            with open(self.config_file, "wb") as f:
-                pickle.dump(
-                    {
-                        "pcap_config": self.pcap_config,
-                        "replay_config": self.replay_config,
-                        "current_session_id": self.current_session_id,
-                        "current_case_id": self.current_case_id,
-                        "current_trace_name": self.current_trace_name,
-                    },
-                    f,
-                )
-            self.logger.info(f"Saved config to {self.config_file}")
-        except (pickle.PickleError, IOError) as e:
-            self.logger.error(f"Failed to save {self.config_file}: {e}")
+        with self._file_lock:
+            try:
+                with open(self.config_file, "wb") as f:
+                    pickle.dump(
+                        {
+                            "pcap_config": self.pcap_config,
+                            "replay_config": self.replay_config,
+                            "current_session_id": self.current_session_id,
+                            "current_case_id": self.current_case_id,
+                            "current_trace_name": self.current_trace_name,
+                        },
+                        f,
+                    )
+                self.logger.info(f"Saved config to {self.config_file}")
+            except (pickle.PickleError, IOError) as e:
+                self.logger.error(f"Failed to save {self.config_file}: {e}")
 
     def set_verbosity(self, level: int):
         """Set verbosity level and update logging."""
@@ -516,14 +528,24 @@ class ConfigManager:
 
 # Global configuration instance
 _config_manager: Optional[ConfigManager] = None
+_config_lock = threading.Lock()  # Protect singleton initialization
 
 
 def get_config() -> ConfigManager:
-    """Get the global configuration manager instance."""
+    """Get the global configuration manager instance.
+
+    Thread-safe singleton pattern using double-checked locking.
+    """
     global _config_manager
-    if _config_manager is None:
-        _config_manager = ConfigManager()
-    return _config_manager
+    # Fast path: instance already exists
+    if _config_manager is not None:
+        return _config_manager
+
+    # Slow path: acquire lock and create if still needed
+    with _config_lock:
+        if _config_manager is None:
+            _config_manager = ConfigManager()
+        return _config_manager
 
 
 def get_logger() -> logging.Logger:

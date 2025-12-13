@@ -7,6 +7,7 @@ handling initialization, configuration, and error handling.
 import logging
 import os
 import sys
+import threading
 import uuid
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
@@ -37,6 +38,7 @@ class SMBReplayService:
         self._system: Optional[SMB2ReplaySystem] = None
         self._initialized = False
         self._jobs: Dict[str, Dict[str, Any]] = {}
+        self._jobs_lock = threading.Lock()  # Protect concurrent job access
 
     @property
     def system(self) -> SMB2ReplaySystem:
@@ -507,14 +509,15 @@ class SMBReplayService:
             Job ID.
         """
         job_id = str(uuid.uuid4())
-        self._jobs[job_id] = {
-            "type": job_type,
-            "status": "pending",
-            "progress": 0,
-            "params": params,
-            "result": None,
-            "error": None,
-        }
+        with self._jobs_lock:
+            self._jobs[job_id] = {
+                "type": job_type,
+                "status": "pending",
+                "progress": 0,
+                "params": params,
+                "result": None,
+                "error": None,
+            }
         return job_id
 
     def get_job_status(self, job_id: str) -> Optional[Dict[str, Any]]:
@@ -526,7 +529,10 @@ class SMBReplayService:
         Returns:
             Job status dict or None if not found.
         """
-        return self._jobs.get(job_id)
+        with self._jobs_lock:
+            job = self._jobs.get(job_id)
+            # Return a copy to avoid external mutation
+            return dict(job) if job else None
 
     def update_job(self, job_id: str, **updates) -> None:
         """Update job status.
@@ -535,8 +541,9 @@ class SMBReplayService:
             job_id: Job ID.
             **updates: Fields to update.
         """
-        if job_id in self._jobs:
-            self._jobs[job_id].update(updates)
+        with self._jobs_lock:
+            if job_id in self._jobs:
+                self._jobs[job_id].update(updates)
 
     # =========================================================================
     # Helpers

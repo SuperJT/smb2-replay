@@ -5,11 +5,13 @@ Handles PCAP file processing using tshark for SMB2 protocol analysis.
 
 import json
 import os
+import select
 import pandas as pd
 import psutil
 import pyarrow as pa
 import pyarrow.parquet as pq
 import subprocess
+import time
 import traceback
 from typing import List, Optional, Tuple
 
@@ -259,18 +261,32 @@ def extract_fields(
         return 0, -1, "", "", "", {}
 
 
-def process_tshark_output(cmd: List[str], fields: List[str]) -> pd.DataFrame:
+def process_tshark_output(
+    cmd: List[str],
+    fields: List[str],
+    max_records: int = 10_000_000,
+    timeout_seconds: int = 3600,
+    idle_timeout_seconds: int = 300,
+) -> pd.DataFrame:
     """Process tshark output into a DataFrame.
 
     Args:
         cmd: Tshark command arguments
         fields: List of field names
+        max_records: Maximum records to process (default 10M, ~4GB memory)
+        timeout_seconds: Maximum total processing time (default 1 hour)
+        idle_timeout_seconds: Maximum time waiting for data (default 5 minutes)
 
     Returns:
         DataFrame with extracted SMB2 data
+
+    Raises:
+        TimeoutError: If processing exceeds timeout limits
     """
     logger.info(f"Processing tshark output with command: {' '.join(cmd)[:200]}...")
+    start_time = time.time()
 
+    proc = None
     try:
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
@@ -284,7 +300,34 @@ def process_tshark_output(cmd: List[str], fields: List[str]) -> pd.DataFrame:
         if proc.stdout is None:
             logger.critical("proc.stdout is None; cannot read tshark output")
             return pd.DataFrame()
-        for line in proc.stdout:
+
+        # Use select for timeout handling on stdout reads
+        stdout_fd = proc.stdout.fileno()
+
+        while True:
+            # Check total timeout
+            elapsed = time.time() - start_time
+            if elapsed > timeout_seconds:
+                raise TimeoutError(
+                    f"Processing exceeded total timeout of {timeout_seconds}s "
+                    f"(processed {line_count} lines)"
+                )
+
+            # Use select with idle timeout to avoid indefinite blocking
+            readable, _, _ = select.select([stdout_fd], [], [], idle_timeout_seconds)
+            if not readable:
+                # Check if process is still running
+                if proc.poll() is not None:
+                    break  # Process finished
+                raise TimeoutError(
+                    f"No data received for {idle_timeout_seconds}s "
+                    f"(idle timeout, processed {line_count} lines)"
+                )
+
+            line = proc.stdout.readline()
+            if not line:
+                break  # EOF
+
             line = line.strip()
             if not line:
                 continue
@@ -329,6 +372,14 @@ def process_tshark_output(cmd: List[str], fields: List[str]) -> pd.DataFrame:
                 }
                 data.append(record)
 
+                # Check memory limit to prevent unbounded growth
+                if len(data) >= max_records:
+                    logger.warning(
+                        f"Reached max_records limit ({max_records}). "
+                        f"Truncating output to prevent memory exhaustion."
+                    )
+                    break
+
             except (KeyError, ValueError) as e:
                 skip_count += 1
                 if skip_count <= 5:
@@ -337,20 +388,21 @@ def process_tshark_output(cmd: List[str], fields: List[str]) -> pd.DataFrame:
                     )
                 continue
 
+        # Clean up process resources
         if proc.stdout is not None:
             proc.stdout.close()
+        if proc.stderr is not None:
+            proc.stderr.close()
         proc.wait()
 
         if proc.returncode != 0:
-            stderr_output = proc.stderr.read() if proc.stderr is not None else ""
             logger.critical(
-                f"tshark failed with exit code {proc.returncode}, stderr: {stderr_output}"
+                f"tshark failed with exit code {proc.returncode}"
             )
             raise subprocess.CalledProcessError(
                 proc.returncode,
                 cmd,
                 output=json.dumps(data, indent=2) if data else "",
-                stderr=stderr_output,
             )
 
         if not data:
@@ -398,6 +450,24 @@ def process_tshark_output(cmd: List[str], fields: List[str]) -> pd.DataFrame:
             f"Error in process_tshark_output: {str(e)}\n{traceback.format_exc()}"
         )
         raise
+    finally:
+        # Ensure process cleanup even if exception occurs
+        if proc is not None:
+            if proc.stdout is not None:
+                try:
+                    proc.stdout.close()
+                except Exception:
+                    pass
+            if proc.stderr is not None:
+                try:
+                    proc.stderr.close()
+                except Exception:
+                    pass
+            try:
+                proc.terminate()
+                proc.wait(timeout=5)
+            except Exception:
+                proc.kill()  # Force kill if terminate doesn't work
 
 
 def _optimize_dataframe(df: pd.DataFrame) -> pd.DataFrame:

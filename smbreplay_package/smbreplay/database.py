@@ -5,19 +5,33 @@ This module provides async database operations to store trace and session data
 in the tracer PostgreSQL database, replacing the Parquet file-based storage.
 """
 
+import asyncio
 import json
 import logging
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-import psycopg
 from psycopg import sql
 from psycopg.rows import dict_row
+from psycopg_pool import AsyncConnectionPool
 
 from .config import get_logger
+
+# Module-level connection pool (singleton pattern)
+_pool: Optional[AsyncConnectionPool] = None
+_pool_lock: asyncio.Lock | None = None  # Lazy-initialized async lock
+
+
+def _get_pool_lock() -> asyncio.Lock:
+    """Get or create the pool lock (must be called from async context)."""
+    global _pool_lock
+    if _pool_lock is None:
+        _pool_lock = asyncio.Lock()
+    return _pool_lock
 
 
 def _make_json_serializable(data: Any) -> Any:
@@ -60,31 +74,115 @@ logger = get_logger()
 
 
 class DatabaseClient:
-    """Async PostgreSQL client for storing SMB replay session data."""
+    """Async PostgreSQL client for storing SMB replay session data.
 
-    def __init__(self, connection_string: Optional[str] = None):
-        """Initialize database client.
+    Uses connection pooling for efficient connection management.
+    """
+
+    # Default pool configuration
+    MIN_POOL_SIZE = 2
+    MAX_POOL_SIZE = 10
+    CONNECTION_TIMEOUT = 30.0  # seconds
+    QUERY_TIMEOUT = 60.0  # seconds
+
+    def __init__(
+        self,
+        connection_string: Optional[str] = None,
+        min_size: int = MIN_POOL_SIZE,
+        max_size: int = MAX_POOL_SIZE,
+        connection_timeout: float = CONNECTION_TIMEOUT,
+        query_timeout: float = QUERY_TIMEOUT,
+    ):
+        """Initialize database client with connection pool.
 
         Args:
             connection_string: PostgreSQL connection string.
                              If None, reads from DATABASE_URL environment variable.
+            min_size: Minimum number of connections in pool (default 2)
+            max_size: Maximum number of connections in pool (default 10)
+            connection_timeout: Timeout for acquiring connection from pool (default 30s)
+            query_timeout: Timeout for query execution (default 60s)
         """
         self.connection_string = connection_string or os.getenv(
             "DATABASE_URL",
         )
-        logger.info("Initialized database client")
+        self.min_size = min_size
+        self.max_size = max_size
+        self.connection_timeout = connection_timeout
+        self.query_timeout = query_timeout
+        self._pool: Optional[AsyncConnectionPool] = None
+        logger.info(
+            f"Initialized database client (pool: min={min_size}, max={max_size}, "
+            f"conn_timeout={connection_timeout}s, query_timeout={query_timeout}s)"
+        )
 
-    async def connect(self) -> psycopg.AsyncConnection:
-        """Create async database connection.
+    async def _get_pool(self) -> AsyncConnectionPool:
+        """Get or create the connection pool (lazy initialization).
 
         Returns:
-            Async connection instance
+            The async connection pool
+
+        Note:
+            Uses async lock to prevent race condition where multiple coroutines
+            could see _pool as None and create duplicate pools.
         """
-        conn = await psycopg.AsyncConnection.connect(
-            self.connection_string, row_factory=dict_row
-        )
-        logger.debug("Created database connection")
-        return conn
+        global _pool
+        # Fast path: pool already exists
+        if _pool is not None:
+            return _pool
+
+        # Slow path: acquire lock and create pool if still needed
+        async with _get_pool_lock():
+            # Double-check after acquiring lock
+            if _pool is None:
+                _pool = AsyncConnectionPool(
+                    self.connection_string,
+                    min_size=self.min_size,
+                    max_size=self.max_size,
+                    timeout=self.connection_timeout,
+                    kwargs={"row_factory": dict_row},
+                    open=False,  # Don't open immediately
+                )
+                await _pool.open()
+                logger.info("Database connection pool opened")
+            return _pool
+
+    @asynccontextmanager
+    async def connect(self):
+        """Get a connection from the pool with automatic transaction management.
+
+        Yields:
+            Async connection instance from the pool
+
+        The connection automatically commits on success or rolls back on exception.
+
+        Usage:
+            async with client.connect() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(...)
+        """
+        pool = await self._get_pool()
+        async with pool.connection() as conn:
+            logger.debug("Acquired connection from pool")
+            try:
+                yield conn
+                await conn.commit()
+                logger.debug("Transaction committed")
+            except Exception as e:
+                await conn.rollback()
+                logger.error(f"Transaction rolled back due to error: {e}")
+                raise
+            finally:
+                logger.debug("Released connection to pool")
+
+    async def close(self):
+        """Close the connection pool."""
+        global _pool
+        async with _get_pool_lock():
+            if _pool is not None:
+                await _pool.close()
+                _pool = None
+                logger.info("Database connection pool closed")
 
     async def create_or_update_trace(
         self,
@@ -110,7 +208,7 @@ class DatabaseClient:
         Returns:
             Trace ID (UUID)
         """
-        async with await self.connect() as conn:
+        async with self.connect() as conn:
             async with conn.cursor() as cur:
                 # Upsert trace record
                 query = sql.SQL(
@@ -167,7 +265,7 @@ class DatabaseClient:
             error_message: Error message if failed
             ingested_at: Timestamp when ingestion completed
         """
-        async with await self.connect() as conn:
+        async with self.connect() as conn:
             async with conn.cursor() as cur:
                 query = sql.SQL(
                     """
@@ -213,7 +311,7 @@ class DatabaseClient:
         frame_count = len(frames_df)
         memory_mb = frames_df.memory_usage(deep=True).sum() / 1024**2
 
-        async with await self.connect() as conn:
+        async with self.connect() as conn:
             async with conn.cursor() as cur:
                 query = sql.SQL(
                     """
@@ -264,7 +362,7 @@ class DatabaseClient:
         Returns:
             Trace record dict or None if not found
         """
-        async with await self.connect() as conn:
+        async with self.connect() as conn:
             async with conn.cursor() as cur:
                 query = sql.SQL(
                     """
@@ -288,7 +386,7 @@ class DatabaseClient:
         Returns:
             List of session records (without frame data for efficiency)
         """
-        async with await self.connect() as conn:
+        async with self.connect() as conn:
             async with conn.cursor() as cur:
                 query = sql.SQL(
                     """
@@ -316,7 +414,7 @@ class DatabaseClient:
         Returns:
             DataFrame containing frame data or None if not found
         """
-        async with await self.connect() as conn:
+        async with self.connect() as conn:
             async with conn.cursor() as cur:
                 query = sql.SQL(
                     """

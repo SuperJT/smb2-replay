@@ -31,7 +31,7 @@ dependencies = [
     "click",
     "rich",
     "psutil",
-    "psycopg[binary]",
+    "psycopg[binary,pool]",
 ]
 
 [project.optional-dependencies]
