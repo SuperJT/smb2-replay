@@ -8,17 +8,17 @@
         }
     ],
     "settings": {
-        "python.defaultInterpreterPath": "./venv/bin/python",
+        "python.defaultInterpreterPath": "./.venv/bin/python",
         "python.terminal.activateEnvironment": true,
         "python.terminal.activateEnvInCurrentTerminal": true,
         "terminal.integrated.env.linux": {
-            "VIRTUAL_ENV": "${workspaceFolder}/venv",
-            "PATH": "${workspaceFolder}/venv/bin:${env:PATH}"
+            "VIRTUAL_ENV": "${workspaceFolder}/.venv",
+            "PATH": "${workspaceFolder}/.venv/bin:${env:PATH}"
         },
         "terminal.integrated.profiles.linux": {
             "smbreplay-env": {
                 "path": "/bin/bash",
-                "args": ["-c", "cd ${workspaceFolder} && source ./venv/bin/activate && exec bash"]
+                "args": ["-c", "cd ${workspaceFolder} && source ./.venv/bin/activate && exec bash"]
             }
         },
         "terminal.integrated.defaultProfile.linux": "smbreplay-env",
