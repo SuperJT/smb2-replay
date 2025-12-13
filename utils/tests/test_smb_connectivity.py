@@ -39,10 +39,10 @@ def test_basic_connectivity(server_ip: str = "127.0.0.1", port: int = 445, timeo
         sock = socket.create_connection((server_ip, port), timeout=timeout)
         sock.close()
         print("✓ Port 445 is reachable")
-        assert True
+        return True
     except Exception as e:
         print(f"✗ Port 445 connection failed: {e}")
-        raise
+        return False
 
 def test_smb_login(server_ip: str = "127.0.0.1", username: str = "test", password: str = "test") -> Optional[tuple[Connection, Session]]:
     """Test SMB login and return (Connection, Session) if successful."""

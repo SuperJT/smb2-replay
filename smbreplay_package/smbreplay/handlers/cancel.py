@@ -4,7 +4,6 @@ Handles operation cancellation using smbprotocol.
 """
 
 import logging
-from smbprotocol.exceptions import SMBException
 from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
@@ -29,31 +28,15 @@ def handle_cancel(replayer, op: Dict[str, Any], **kwargs):
         # Extract cancel parameters
         message_id = op.get("smb2.msg_id", "")
 
-        replayer.logger.debug(f"Cancel: Attempting to cancel message_id={message_id}")
+        replayer.logger.debug(f"Cancel: Received cancel for message_id={message_id}")
 
-        # Note: smbprotocol doesn't expose a direct cancel method
-        # This is a placeholder for the cancel functionality
-        # In a real implementation, this would send a cancel request to the server
-
-        replayer.logger.info(
-            f"Cancel: Cancel request logged for message_id={message_id}"
+        # SMB2 Cancel is not implemented - smbprotocol doesn't expose cancel functionality
+        # and proper cancel requires tracking pending async operations with their AsyncIds.
+        # Log a warning so users know this operation is skipped during replay.
+        replayer.logger.warning(
+            f"Cancel: Operation skipped (not implemented) for message_id={message_id}"
         )
 
-        # Validate response if expected status is available
-        expected_status = op.get("smb2.nt_status", "0x00000000")
-        if expected_status and expected_status != "0x00000000":
-            replayer.logger.debug(
-                f"Cancel: Expected status {expected_status}, got success"
-            )
-
-    except SMBException as e:
-        replayer.logger.error(f"Cancel operation failed: {e}")
-        # Validate response against expected error
-        expected_status = op.get("smb2.nt_status", "0x00000000")
-        if expected_status and expected_status != "0x00000000":
-            replayer.logger.debug(
-                f"Cancel: Expected status {expected_status}, got error: {e}"
-            )
     except (ValueError, TypeError) as e:
         replayer.logger.error(f"Cancel: Invalid parameters: {e}")
     except Exception as e:

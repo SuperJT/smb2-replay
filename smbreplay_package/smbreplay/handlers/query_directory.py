@@ -200,35 +200,3 @@ def _query_directory_info(
     except SMBException as e:
         logger.error(f"Directory query failed for class {file_info_class}: {e}")
         return None
-
-
-def _parse_directory_entries(result_data):
-    """Parse directory query results into readable format."""
-    if not result_data:
-        return []
-
-    entries = []
-    try:
-        # This is a simplified parser - smbprotocol should handle the parsing
-        # but we can add custom parsing if needed
-        if hasattr(result_data, "__iter__"):
-            for entry in result_data:
-                if hasattr(entry, "file_name"):
-                    entries.append(
-                        {
-                            "file_name": entry.file_name,
-                            "file_size": getattr(entry, "file_size", 0),
-                            "file_attributes": getattr(entry, "file_attributes", 0),
-                            "creation_time": getattr(entry, "creation_time", None),
-                            "last_access_time": getattr(
-                                entry, "last_access_time", None
-                            ),
-                            "last_write_time": getattr(entry, "last_write_time", None),
-                            "change_time": getattr(entry, "change_time", None),
-                            "file_id": getattr(entry, "file_id", None),
-                        }
-                    )
-    except Exception as e:
-        logger.error(f"Error parsing directory entries: {e}")
-
-    return entries

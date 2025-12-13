@@ -23,11 +23,11 @@ def capture_setup_pcap(session_id, pcap_file=None):
     
     try:
         # Start tshark in background
-        tshark_cmd = f"sudo tshark -i lo -w {pcap_file} -f 'port 445' -q"
-        print(f"Running: {tshark_cmd}")
-        
-        tshark_process = subprocess.Popen(tshark_cmd.split(), 
-                                        stdout=subprocess.DEVNULL, 
+        tshark_cmd = ["sudo", "tshark", "-i", "lo", "-w", pcap_file, "-f", "port 445", "-q"]
+        print(f"Running: {' '.join(tshark_cmd)}")
+
+        tshark_process = subprocess.Popen(tshark_cmd,
+                                        stdout=subprocess.DEVNULL,
                                         stderr=subprocess.DEVNULL)
         
         # Wait a moment for tshark to start
@@ -36,11 +36,11 @@ def capture_setup_pcap(session_id, pcap_file=None):
         print("PCAP capture started. Running setup command...")
         
         # Run the setup command
-        setup_cmd = f"smbreplay setup {session_id}"
-        print(f"Running: {setup_cmd}")
-        
-        setup_process = subprocess.run(setup_cmd.split(), 
-                                     capture_output=False, 
+        setup_cmd = ["smbreplay", "setup", session_id]
+        print(f"Running: {' '.join(setup_cmd)}")
+
+        setup_process = subprocess.run(setup_cmd,
+                                     capture_output=False,
                                      text=True)
         
         # Wait a moment for any final packets

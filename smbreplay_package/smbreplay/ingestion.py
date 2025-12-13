@@ -402,12 +402,15 @@ async def save_sessions_to_database(
 
 
 # Maintain backward compatibility while using optimized functions
-def normalize_sesid(sesid_str) -> set[str]:
-    """Normalize smb2.sesid values, handling lists and commas, returns set[str]."""
+def normalize_sesid(sesid_str) -> list[str]:
+    """Normalize smb2.sesid values, handling lists and commas, returns list[str].
+
+    Returns a sorted list (not set) for JSON/Parquet serialization compatibility.
+    """
     logger.debug(f"Normalizing sesid: {str(sesid_str)[:200]}")
     try:
         if pd.isna(sesid_str) or not sesid_str:
-            return set()
+            return []
         if isinstance(sesid_str, (list, set)):
             sesids = {
                 item.strip()
@@ -420,46 +423,49 @@ def normalize_sesid(sesid_str) -> set[str]:
                 for item in str(sesid_str).split(",")
                 if item and item != "0x0000000000000000"
             }
-        return sesids
+        return sorted(sesids)  # Convert to sorted list for serialization
     except Exception as e:
         logger.critical(f"Error in normalize_sesid: {str(e)}\n{traceback.format_exc()}")
-        return set()
+        return []
 
 
-def normalize_cmd(cmd_str) -> set[str]:
-    """Normalize smb2.cmd values, handling lists and commas, returns set[str]."""
+def normalize_cmd(cmd_str) -> list[str]:
+    """Normalize smb2.cmd values, handling lists and commas, returns list[str].
+
+    Returns a sorted list (not set) for JSON/Parquet serialization compatibility.
+    """
     logger.debug(f"Normalizing cmd: {str(cmd_str)[:200]}")
     try:
         # Handle None and NaN values
         if cmd_str is None:
-            return set()
+            return []
         # For pd.Series, use .any() to check if any values are NA
         if isinstance(cmd_str, pd.Series):
             if pd.isna(cmd_str).any():
-                return set()
+                return []
         # For lists, check each element
         elif isinstance(cmd_str, list):
             if all(pd.isna(item) for item in cmd_str):
-                return set()
+                return []
         # For sets, convert to list first (pd.isna doesn't handle sets well)
         elif isinstance(cmd_str, set):
             if not cmd_str:  # Empty set
-                return set()
+                return []
             # Filter out None/NaN values from the set
             valid_items = {item for item in cmd_str if item is not None and not (isinstance(item, float) and pd.isna(item))}
-            return {str(item).strip() for item in valid_items if item}
+            return sorted(str(item).strip() for item in valid_items if item)
         # For scalar values
         elif pd.isna(cmd_str):
-            return set()
+            return []
 
         if not cmd_str:
-            return set()
+            return []
         if isinstance(cmd_str, (list, set)):
-            return {str(item).strip() for item in cmd_str if item}
-        return {item.strip() for item in str(cmd_str).split(",") if item}
+            return sorted(str(item).strip() for item in cmd_str if item)
+        return sorted(item.strip() for item in str(cmd_str).split(",") if item)
     except Exception as e:
         logger.critical(f"Error in normalize_cmd: {str(e)}\n{traceback.format_exc()}")
-        return set()
+        return []
 
 
 def extract_unique_sessions(df: pd.DataFrame) -> List[str]:

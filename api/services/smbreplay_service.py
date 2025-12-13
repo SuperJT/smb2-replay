@@ -7,8 +7,6 @@ handling initialization, configuration, and error handling.
 import logging
 import os
 import sys
-import threading
-import uuid
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
@@ -37,8 +35,6 @@ class SMBReplayService:
         """Initialize the service."""
         self._system: Optional[SMB2ReplaySystem] = None
         self._initialized = False
-        self._jobs: Dict[str, Dict[str, Any]] = {}
-        self._jobs_lock = threading.Lock()  # Protect concurrent job access
 
     @property
     def system(self) -> SMB2ReplaySystem:
@@ -493,57 +489,6 @@ class SMBReplayService:
             logger.warning(f"Could not configure ping: {e}")
 
         return self.system.replay_operations(operations)
-
-    # =========================================================================
-    # Job Management (for async operations)
-    # =========================================================================
-
-    def create_job(self, job_type: str, params: Dict[str, Any]) -> str:
-        """Create a new async job.
-
-        Args:
-            job_type: Type of job (ingest, replay).
-            params: Job parameters.
-
-        Returns:
-            Job ID.
-        """
-        job_id = str(uuid.uuid4())
-        with self._jobs_lock:
-            self._jobs[job_id] = {
-                "type": job_type,
-                "status": "pending",
-                "progress": 0,
-                "params": params,
-                "result": None,
-                "error": None,
-            }
-        return job_id
-
-    def get_job_status(self, job_id: str) -> Optional[Dict[str, Any]]:
-        """Get job status.
-
-        Args:
-            job_id: Job ID.
-
-        Returns:
-            Job status dict or None if not found.
-        """
-        with self._jobs_lock:
-            job = self._jobs.get(job_id)
-            # Return a copy to avoid external mutation
-            return dict(job) if job else None
-
-    def update_job(self, job_id: str, **updates) -> None:
-        """Update job status.
-
-        Args:
-            job_id: Job ID.
-            **updates: Fields to update.
-        """
-        with self._jobs_lock:
-            if job_id in self._jobs:
-                self._jobs[job_id].update(updates)
 
     # =========================================================================
     # Helpers

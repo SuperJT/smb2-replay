@@ -6,10 +6,9 @@
 # ============================================================================
 FROM python:3.12-slim as builder
 
-# Install system dependencies (git for GitHub install, curl for UV installer)
+# Install system dependencies (curl for UV installer)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    git \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -26,10 +25,10 @@ ENV VIRTUAL_ENV=/opt/venv
 RUN uv venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Clone repo first to get both the package and API module
-RUN git clone --depth 1 https://github.com/SuperJT/smb2-replay.git /tmp/smbreplay
+# Copy local code into builder
+COPY . /tmp/smbreplay
 
-# Install smbreplay with API extras from local clone using UV (10-100x faster than pip)
+# Install smbreplay with API extras from local code using UV (10-100x faster than pip)
 # Installing from local path with extras ensures all dependencies resolve correctly
 RUN uv pip install --no-cache "/tmp/smbreplay[api]"
 

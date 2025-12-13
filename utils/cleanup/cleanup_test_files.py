@@ -57,7 +57,7 @@ def cleanup_test_files():
                     desired_access=0x00010000,  # DELETE
                     file_attributes=0,
                     share_access=0x00000001,  # FILE_SHARE_READ
-                    create_disposition=3,  # FILE_OPEN_IF
+                    create_disposition=1,  # FILE_OPEN (don't create if missing)
                     create_options=0
                 )
                 

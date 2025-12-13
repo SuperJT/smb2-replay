@@ -60,7 +60,7 @@ def force_cleanup():
                     desired_access=0x00010000,  # DELETE
                     file_attributes=0,
                     share_access=0x00000001,  # FILE_SHARE_READ
-                    create_disposition=3,  # FILE_OPEN_IF
+                    create_disposition=1,  # FILE_OPEN (don't create if missing)
                     create_options=0
                 )
                 file_open.close()
@@ -79,7 +79,7 @@ def force_cleanup():
                     desired_access=0x00010000,  # DELETE
                     file_attributes=0x00000010,  # FILE_ATTRIBUTE_DIRECTORY
                     share_access=0x00000001,  # FILE_SHARE_READ
-                    create_disposition=3,  # FILE_OPEN_IF
+                    create_disposition=1,  # FILE_OPEN (don't create if missing)
                     create_options=1  # FILE_DIRECTORY_FILE
                 )
                 dir_open.close()

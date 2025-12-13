@@ -11,12 +11,6 @@ logger = logging.getLogger(__name__)
 
 # Change Notify Flags
 SMB2_WATCH_TREE = 0x0001
-SMB2_WATCH_ACTION_CHECK = 0x0002
-SMB2_WATCH_ACTION_ADDED = 0x0004
-SMB2_WATCH_ACTION_REMOVED = 0x0008
-SMB2_WATCH_ACTION_MODIFIED = 0x0010
-SMB2_WATCH_ACTION_RENAMED_OLD_NAME = 0x0020
-SMB2_WATCH_ACTION_RENAMED_NEW_NAME = 0x0040
 
 
 def handle_change_notify(replayer, op: Dict[str, Any], **kwargs):
@@ -95,20 +89,3 @@ def handle_change_notify(replayer, op: Dict[str, Any], **kwargs):
         replayer.logger.error(
             f"Change Notify: Unexpected error for fid {original_fid}: {e}"
         )
-
-
-def _parse_change_notify_flags(flags: int) -> Dict[str, bool]:
-    """Parse change notify flags into readable format."""
-    return {
-        "watch_tree": bool(flags & SMB2_WATCH_TREE),
-        "watch_action_check": bool(flags & SMB2_WATCH_ACTION_CHECK),
-        "watch_action_added": bool(flags & SMB2_WATCH_ACTION_ADDED),
-        "watch_action_removed": bool(flags & SMB2_WATCH_ACTION_REMOVED),
-        "watch_action_modified": bool(flags & SMB2_WATCH_ACTION_MODIFIED),
-        "watch_action_renamed_old_name": bool(
-            flags & SMB2_WATCH_ACTION_RENAMED_OLD_NAME
-        ),
-        "watch_action_renamed_new_name": bool(
-            flags & SMB2_WATCH_ACTION_RENAMED_NEW_NAME
-        ),
-    }

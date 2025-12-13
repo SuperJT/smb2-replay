@@ -131,7 +131,29 @@ export class SMBReplayClient {
         );
       }
 
-      return (await response.json()) as T;
+      try {
+        const data = await response.json();
+        // Basic runtime validation: ensure we got an object (most API responses are objects)
+        if (data === null || (typeof data !== 'object' && typeof data !== 'boolean')) {
+          throw new APIError(
+            `Unexpected response type: ${typeof data}`,
+            response.status,
+            { receivedType: typeof data }
+          );
+        }
+        return data as T;
+      } catch (parseError) {
+        // Re-throw APIError from validation above
+        if (parseError instanceof APIError) {
+          throw parseError;
+        }
+        // Non-JSON response from API is an API error, not a network error
+        throw new APIError(
+          'Invalid JSON response from server',
+          response.status,
+          { parseError: parseError instanceof Error ? parseError.message : 'Unknown parse error' }
+        );
+      }
     } catch (error) {
       clearTimeout(timeoutId);
 
@@ -281,16 +303,16 @@ export class SMBReplayClient {
     filter?: OperationFilter
   ): Promise<OperationsResponse> {
     if (filter && (filter.fields || filter.file_filter)) {
-      // Use POST for complex filters
+      // Use POST for complex filters (fields, file_filter)
       return this.post<OperationsResponse>(
         `/api/sessions/${sessionId}/operations`,
         filter
       );
     }
 
+    // GET only supports simple capture_path filter
     return this.get<OperationsResponse>(`/api/sessions/${sessionId}`, {
       capture_path: filter?.capture_path,
-      file_filter: filter?.file_filter,
     });
   }
 

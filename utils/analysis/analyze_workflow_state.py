@@ -71,7 +71,9 @@ def analyze_workflow_state(df: pd.DataFrame) -> Dict[str, Any]:
         'accessed': False,
         'first_seen': None,
         'last_seen': None,
-        'operations': []
+        'operations': [],
+        'create_operations': [],
+        'open_operations': []
     })
     
     # Process frames chronologically

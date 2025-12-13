@@ -32,9 +32,11 @@ def handle_echo(replayer, op: Dict[str, Any], **kwargs):
         replayer.logger.debug(f"Echo: Sending {echo_count} echo request(s)")
 
         # Send echo request(s) to the server
+        completed = 0
         for i in range(echo_count):
             try:
                 session.echo()
+                completed += 1
                 replayer.logger.debug(
                     f"Echo: Successfully sent echo request {i+1}/{echo_count}"
                 )
@@ -44,7 +46,7 @@ def handle_echo(replayer, op: Dict[str, Any], **kwargs):
                 )
                 break
 
-        replayer.logger.info(f"Echo: Completed {echo_count} echo request(s)")
+        replayer.logger.info(f"Echo: Completed {completed}/{echo_count} echo request(s)")
 
         # Validate response if expected status is available
         expected_status = op.get("smb2.nt_status", "0x00000000")
