@@ -26,12 +26,19 @@ class TraceListResponse(BaseModel):
 class IngestRequest(BaseModel):
     """Request to ingest a PCAP file."""
 
-    path: str = Field(..., description="Path to PCAP file (absolute or relative to case)")
+    path: str = Field(
+        ...,
+        description="Path to PCAP file (absolute or relative to case)",
+        alias="capture_path",  # Accept capture_path from frontend
+    )
     force: bool = Field(False, description="Force re-ingestion even if data exists")
     reassembly: bool = Field(False, description="Enable TCP reassembly during parsing")
     case_id: Optional[str] = Field(
-        None, description="Case ID (required for relative paths)"
+        None, description="Case ID (required for relative paths)", alias="caseId"
     )
+
+    # Accept both snake_case (Python) and camelCase/aliases (frontend)
+    model_config = {"populate_by_name": True}
 
     @field_validator("path")
     @classmethod

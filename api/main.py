@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Security, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
@@ -186,6 +187,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 logger.info(f"CORS configured for origins: {CORS_ORIGINS}")
+
+
+# Validation error handler - logs request body for debugging 422 errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle request validation errors with detailed logging."""
+    # Log the request body to help debug validation failures
+    try:
+        body = await request.body()
+        body_str = body.decode("utf-8") if body else "(empty)"
+    except Exception:
+        body_str = "(could not read body)"
+
+    logger.warning(
+        f"Validation error on {request.method} {request.url.path}: "
+        f"body={body_str}, errors={exc.errors()}"
+    )
+
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "body": body_str[:500] if len(body_str) > 500 else body_str,
+        },
+    )
 
 
 # Global exception handler for service errors
