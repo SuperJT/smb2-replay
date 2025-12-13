@@ -11,12 +11,50 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 import psycopg
 from psycopg import sql
 from psycopg.rows import dict_row
 
 from .config import get_logger
+
+
+def _make_json_serializable(data: Any) -> Any:
+    """Recursively convert non-JSON-serializable types for database storage.
+
+    Handles:
+    - set -> list (from normalize_sesid/normalize_cmd in ingestion.py)
+    - numpy int/float types -> Python int/float
+    - numpy arrays -> lists
+    - pd.Timestamp -> ISO format string
+    - NaN/None values
+
+    Args:
+        data: Any data structure to convert
+
+    Returns:
+        JSON-serializable version of the data
+    """
+    if isinstance(data, dict):
+        return {k: _make_json_serializable(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [_make_json_serializable(v) for v in data]
+    elif isinstance(data, set):
+        return [_make_json_serializable(v) for v in data]
+    elif isinstance(data, (np.integer,)):
+        return int(data)
+    elif isinstance(data, (np.floating,)):
+        if np.isnan(data):
+            return None
+        return float(data)
+    elif isinstance(data, np.ndarray):
+        return [_make_json_serializable(v) for v in data.tolist()]
+    elif isinstance(data, pd.Timestamp):
+        return data.isoformat()
+    elif pd.isna(data):
+        return None
+    return data
 
 logger = get_logger()
 
@@ -103,7 +141,7 @@ class DatabaseClient:
                         packet_count,
                         file_size,
                         status,
-                        json.dumps(metadata) if metadata else None,
+                        json.dumps(_make_json_serializable(metadata)) if metadata else None,
                     ),
                 )
                 result = await cur.fetchone()
@@ -168,7 +206,9 @@ class DatabaseClient:
             Session database ID (UUID)
         """
         # Convert DataFrame to JSON-serializable format
-        frames_data = frames_df.to_dict(orient="records")
+        # Uses _make_json_serializable to handle sets from normalize_sesid/normalize_cmd
+        # and numpy types that json.dumps cannot serialize directly
+        frames_data = _make_json_serializable(frames_df.to_dict(orient="records"))
 
         # Calculate statistics
         frame_count = len(frames_df)
