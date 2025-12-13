@@ -271,10 +271,13 @@ class SMBReplayService:
         )
 
         if result:
+            # sessions is a dict of {session_id: DataFrame}, extract keys as list
+            sessions_dict = result.get("sessions", {})
+            session_ids = list(sessions_dict.keys()) if isinstance(sessions_dict, dict) else []
             return {
                 "success": True,
-                "sessions": result.get("sessions", []),
-                "session_count": len(result.get("sessions", [])),
+                "sessions": session_ids,
+                "session_count": len(session_ids),
                 "total_frames": result.get("total_frames"),
                 "processing_time": result.get("processing_time"),
             }

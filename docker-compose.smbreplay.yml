@@ -15,7 +15,9 @@ services:
       - PORT=3004
       - TRACES_FOLDER=/stingray
       - SESSION_OUTPUT=/output
-      - DATABASE_URL=${DATABASE_URL:-}
+      # Use Docker network hostname (postgres service name) instead of localhost
+      # Set DATABASE_URL_DOCKER in .env, or it builds from POSTGRES_PASSWORD
+      - DATABASE_URL=${DATABASE_URL_DOCKER:-postgresql://tracer:${POSTGRES_PASSWORD}@postgres:5432/tracer?schema=public&connect_timeout=10}
       - PYTHONUNBUFFERED=1
     volumes:
       - ${STINGRAY:-~/cases}:/stingray:ro
