@@ -608,6 +608,20 @@ class SessionManager:
         def get_op_name(x):
             if x and pd.notna(x):
                 try:
+                    # Handle set values from normalize_cmd_vectorized in ingestion.py
+                    if isinstance(x, set):
+                        if x:
+                            # Take first command from set and translate it
+                            first_cmd = next(iter(x))
+                            normalized = str(int(first_cmd.strip()))
+                            result = cmd_mapping.get(normalized, f"UNKNOWN({first_cmd})")
+                            logger.debug(
+                                f"Command translation (set): {x} -> {normalized} -> {result}"
+                            )
+                            return result
+                        return "UNKNOWN"
+
+                    # Original string handling via normalize lambda
                     normalized = normalize_cmd(x)
                     result = cmd_mapping.get(normalized, f"UNKNOWN({x})")
                     logger.debug(
