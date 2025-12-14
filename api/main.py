@@ -9,7 +9,6 @@ import os
 import secrets
 import sys
 from contextlib import asynccontextmanager
-from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Security, status
 from fastapi.exceptions import RequestValidationError
@@ -18,9 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 
 # Add smbreplay package to path before importing routes
-sys.path.insert(
-    0, os.path.join(os.path.dirname(__file__), "..", "smbreplay_package")
-)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "smbreplay_package"))
 
 from api.routes import config, health, replay, sessions, traces
 from api.services.smbreplay_service import SMBReplayServiceError, get_smbreplay_service
@@ -37,11 +34,11 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 # API Key Authentication (optional - set API_KEY env var to enable)
-API_KEY: Optional[str] = os.getenv("API_KEY")
+API_KEY: str | None = os.getenv("API_KEY")
 API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-async def verify_api_key(api_key: Optional[str] = Security(API_KEY_HEADER)) -> bool:
+async def verify_api_key(api_key: str | None = Security(API_KEY_HEADER)) -> bool:
     """Verify API key if authentication is enabled.
 
     If API_KEY environment variable is not set, authentication is disabled
@@ -120,7 +117,9 @@ async def lifespan(app: FastAPI):
     if health_status["status"] == "error":
         logger.warning("Service started with errors - health check failed")
     elif health_status["status"] == "degraded":
-        logger.warning("Service started in degraded mode - tshark unavailable, some features may be limited")
+        logger.warning(
+            "Service started in degraded mode - tshark unavailable, some features may be limited"
+        )
     else:
         logger.info("Service started successfully")
 
@@ -128,7 +127,9 @@ async def lifespan(app: FastAPI):
     if API_KEY:
         logger.info("API key authentication ENABLED")
     else:
-        logger.warning("API key authentication DISABLED - set API_KEY env var to enable")
+        logger.warning(
+            "API key authentication DISABLED - set API_KEY env var to enable"
+        )
 
     yield
 

@@ -2,6 +2,7 @@
 """
 Test script to verify the SMB2 Replay environment setup
 """
+
 import os
 import sys
 

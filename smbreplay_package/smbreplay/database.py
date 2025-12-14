@@ -7,11 +7,10 @@ in the tracer PostgreSQL database, replacing the Parquet file-based storage.
 
 import asyncio
 import json
-import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import numpy as np
@@ -23,7 +22,7 @@ from psycopg_pool import AsyncConnectionPool
 from .config import get_logger
 
 
-def _sanitize_connection_string(conn_string: str) -> Tuple[str, Optional[str]]:
+def _sanitize_connection_string(conn_string: str) -> tuple[str, str | None]:
     """Remove Prisma-specific query parameters from PostgreSQL connection string.
 
     Prisma uses `?schema=name` to specify the PostgreSQL schema, but psycopg3
@@ -59,8 +58,9 @@ def _sanitize_connection_string(conn_string: str) -> Tuple[str, Optional[str]]:
 
     return sanitized, schema
 
+
 # Module-level connection pool (singleton pattern)
-_pool: Optional[AsyncConnectionPool] = None
+_pool: AsyncConnectionPool | None = None
 _pool_lock: asyncio.Lock | None = None  # Lazy-initialized async lock
 
 
@@ -90,9 +90,7 @@ def _make_json_serializable(data: Any) -> Any:
     """
     if isinstance(data, dict):
         return {k: _make_json_serializable(v) for k, v in data.items()}
-    elif isinstance(data, list):
-        return [_make_json_serializable(v) for v in data]
-    elif isinstance(data, set):
+    elif isinstance(data, list) or isinstance(data, set):
         return [_make_json_serializable(v) for v in data]
     elif isinstance(data, (np.integer,)):
         return int(data)
@@ -107,6 +105,7 @@ def _make_json_serializable(data: Any) -> Any:
     elif pd.isna(data):
         return None
     return data
+
 
 logger = get_logger()
 
@@ -125,7 +124,7 @@ class DatabaseClient:
 
     def __init__(
         self,
-        connection_string: Optional[str] = None,
+        connection_string: str | None = None,
         min_size: int = MIN_POOL_SIZE,
         max_size: int = MAX_POOL_SIZE,
         connection_timeout: float = CONNECTION_TIMEOUT,
@@ -152,7 +151,7 @@ class DatabaseClient:
         self.max_size = max_size
         self.connection_timeout = connection_timeout
         self.query_timeout = query_timeout
-        self._pool: Optional[AsyncConnectionPool] = None
+        self._pool: AsyncConnectionPool | None = None
 
         schema_info = f", schema={self._schema}" if self._schema else ""
         logger.info(
@@ -247,10 +246,10 @@ class DatabaseClient:
         case_number: str,
         trace_name: str,
         capture_file_path: str,
-        packet_count: Optional[int] = None,
-        file_size: Optional[int] = None,
+        packet_count: int | None = None,
+        file_size: int | None = None,
         status: str = "PENDING",
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         """Create or update a trace record.
 
@@ -266,11 +265,10 @@ class DatabaseClient:
         Returns:
             Trace ID (UUID)
         """
-        async with self.connect() as conn:
-            async with conn.cursor() as cur:
-                # Upsert trace record
-                query = sql.SQL(
-                    """
+        async with self.connect() as conn, conn.cursor() as cur:
+            # Upsert trace record
+            query = sql.SQL(
+                """
                     INSERT INTO "Trace"
                         ("caseNumber", "traceName", "captureFilePath",
                          "packetCount", "fileSize", status, metadata)
@@ -285,35 +283,35 @@ class DatabaseClient:
                         "updatedAt" = NOW()
                     RETURNING id
                     """
-                )
+            )
 
-                await cur.execute(
-                    query,
-                    (
-                        case_number,
-                        trace_name,
-                        capture_file_path,
-                        packet_count,
-                        file_size,
-                        status,
-                        json.dumps(_make_json_serializable(metadata)) if metadata else None,
-                    ),
-                )
-                result = await cur.fetchone()
-                trace_id = result["id"]
+            await cur.execute(
+                query,
+                (
+                    case_number,
+                    trace_name,
+                    capture_file_path,
+                    packet_count,
+                    file_size,
+                    status,
+                    json.dumps(_make_json_serializable(metadata)) if metadata else None,
+                ),
+            )
+            result = await cur.fetchone()
+            trace_id = result["id"]
 
-                await conn.commit()
-                logger.info(
-                    f"Created/updated trace {trace_id} for {case_number}/{trace_name}"
-                )
-                return trace_id
+            await conn.commit()
+            logger.info(
+                f"Created/updated trace {trace_id} for {case_number}/{trace_name}"
+            )
+            return trace_id
 
     async def update_trace_status(
         self,
         trace_id: str,
         status: str,
-        error_message: Optional[str] = None,
-        ingested_at: Optional[datetime] = None,
+        error_message: str | None = None,
+        ingested_at: datetime | None = None,
     ):
         """Update trace ingestion status.
 
@@ -323,10 +321,9 @@ class DatabaseClient:
             error_message: Error message if failed
             ingested_at: Timestamp when ingestion completed
         """
-        async with self.connect() as conn:
-            async with conn.cursor() as cur:
-                query = sql.SQL(
-                    """
+        async with self.connect() as conn, conn.cursor() as cur:
+            query = sql.SQL(
+                """
                     UPDATE "Trace"
                     SET status = %s,
                         "errorMessage" = %s,
@@ -334,13 +331,11 @@ class DatabaseClient:
                         "updatedAt" = NOW()
                     WHERE id = %s
                     """
-                )
+            )
 
-                await cur.execute(
-                    query, (status, error_message, ingested_at, trace_id)
-                )
-                await conn.commit()
-                logger.info(f"Updated trace {trace_id} status to {status}")
+            await cur.execute(query, (status, error_message, ingested_at, trace_id))
+            await conn.commit()
+            logger.info(f"Updated trace {trace_id} status to {status}")
 
     async def create_session(
         self,
@@ -410,7 +405,7 @@ class DatabaseClient:
 
     async def get_trace_by_path(
         self, case_number: str, trace_name: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get trace record by case number and trace name.
 
         Args:
@@ -420,22 +415,19 @@ class DatabaseClient:
         Returns:
             Trace record dict or None if not found
         """
-        async with self.connect() as conn:
-            async with conn.cursor() as cur:
-                query = sql.SQL(
-                    """
+        async with self.connect() as conn, conn.cursor() as cur:
+            query = sql.SQL(
+                """
                     SELECT * FROM "Trace"
                     WHERE "caseNumber" = %s AND "traceName" = %s
                     """
-                )
+            )
 
-                await cur.execute(query, (case_number, trace_name))
-                result = await cur.fetchone()
-                return result
+            await cur.execute(query, (case_number, trace_name))
+            result = await cur.fetchone()
+            return result
 
-    async def list_sessions_for_trace(
-        self, trace_id: str
-    ) -> List[Dict[str, Any]]:
+    async def list_sessions_for_trace(self, trace_id: str) -> list[dict[str, Any]]:
         """List all sessions for a trace.
 
         Args:
@@ -444,25 +436,24 @@ class DatabaseClient:
         Returns:
             List of session records (without frame data for efficiency)
         """
-        async with self.connect() as conn:
-            async with conn.cursor() as cur:
-                query = sql.SQL(
-                    """
+        async with self.connect() as conn, conn.cursor() as cur:
+            query = sql.SQL(
+                """
                     SELECT id, "traceId", "sessionId", "frameCount",
                            "uniqueCommands", "memoryMb", "createdAt", "updatedAt"
                     FROM "Session"
                     WHERE "traceId" = %s
                     ORDER BY "createdAt" ASC
                     """
-                )
+            )
 
-                await cur.execute(query, (trace_id,))
-                results = await cur.fetchall()
-                return results
+            await cur.execute(query, (trace_id,))
+            results = await cur.fetchall()
+            return results
 
     async def get_session_frames(
         self, trace_id: str, session_id: str
-    ) -> Optional[pd.DataFrame]:
+    ) -> pd.DataFrame | None:
         """Get frame data for a specific session.
 
         Args:
@@ -472,30 +463,27 @@ class DatabaseClient:
         Returns:
             DataFrame containing frame data or None if not found
         """
-        async with self.connect() as conn:
-            async with conn.cursor() as cur:
-                query = sql.SQL(
-                    """
+        async with self.connect() as conn, conn.cursor() as cur:
+            query = sql.SQL(
+                """
                     SELECT "framesData" FROM "Session"
                     WHERE "traceId" = %s AND "sessionId" = %s
                     """
-                )
+            )
 
-                await cur.execute(query, (trace_id, session_id))
-                result = await cur.fetchone()
+            await cur.execute(query, (trace_id, session_id))
+            result = await cur.fetchone()
 
-                if result:
-                    frames_data = result["framesData"]
-                    df = pd.DataFrame(frames_data)
-                    logger.info(
-                        f"Retrieved {len(df)} frames for session {session_id}"
-                    )
-                    return df
-                return None
+            if result:
+                frames_data = result["framesData"]
+                df = pd.DataFrame(frames_data)
+                logger.info(f"Retrieved {len(df)} frames for session {session_id}")
+                return df
+            return None
 
 
 # Singleton instance
-_db_client: Optional[DatabaseClient] = None
+_db_client: DatabaseClient | None = None
 
 
 def get_database_client() -> DatabaseClient:

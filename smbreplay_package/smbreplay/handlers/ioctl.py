@@ -4,15 +4,16 @@ Handles IOCTL operations including FSCTL commands using smbprotocol.
 """
 
 import logging
+from typing import Any
+
 from smbprotocol.exceptions import SMBException
-from typing import Any, Dict
 
 from ..constants import FSCTL_CONSTANTS
 
 logger = logging.getLogger(__name__)
 
 
-def handle_ioctl(replayer, op: Dict[str, Any], **kwargs):
+def handle_ioctl(replayer, op: dict[str, Any], **kwargs):
     """Handle IOCTL operation using smbprotocol.
 
     Args:
@@ -85,7 +86,7 @@ def _handle_fsctl(
     function_code: int,
     input_data: bytes,
     max_output_response: int,
-    op: Dict[str, Any],
+    op: dict[str, Any],
     **kwargs,
 ):
     """Handle filesystem control (FSCTL) operations."""
@@ -129,7 +130,7 @@ def _handle_device_ioctl(
     function_code: int,
     input_data: bytes,
     max_output_response: int,
-    op: Dict[str, Any],
+    op: dict[str, Any],
     **kwargs,
 ):
     """Handle device IOCTL operations."""

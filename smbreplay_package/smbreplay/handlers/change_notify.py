@@ -4,8 +4,9 @@ Handles file system change notifications using smbprotocol.
 """
 
 import logging
+from typing import Any
+
 from smbprotocol.exceptions import SMBException
-from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 SMB2_WATCH_TREE = 0x0001
 
 
-def handle_change_notify(replayer, op: Dict[str, Any], **kwargs):
+def handle_change_notify(replayer, op: dict[str, Any], **kwargs):
     """Handle Change Notify operation using smbprotocol.
 
     Args:

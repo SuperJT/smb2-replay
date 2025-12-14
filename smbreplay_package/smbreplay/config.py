@@ -8,7 +8,7 @@ import os
 import pickle
 import sys
 import threading
-from typing import List, Optional, TypedDict
+from typing import TypedDict
 
 # Default configurations
 DEFAULT_PCAP_CONFIG = {"capture_path": None, "verbose_level": 0}  # Default to CRITICAL
@@ -34,16 +34,14 @@ VERBOSITY_TO_LOGGING = {
 
 # Add a TypedDict for pcap_config to ensure correct types
 class PcapConfig(TypedDict, total=False):
-    capture_path: Optional[str]
+    capture_path: str | None
     verbose_level: int
 
 
 class ConfigManager:
     """Manages configuration settings and persistence."""
 
-    def __init__(
-        self, config_dir: Optional[str] = None, state_dir: Optional[str] = None
-    ):
+    def __init__(self, config_dir: str | None = None, state_dir: str | None = None):
         """Initialize configuration manager.
 
         Args:
@@ -87,11 +85,11 @@ class ConfigManager:
         )
 
         # Session management
-        self.current_session_id: Optional[str] = None
-        self.current_case_id: Optional[str] = os.environ.get(
+        self.current_session_id: str | None = None
+        self.current_case_id: str | None = os.environ.get(
             "DEFAULT_CASE_ID", "2010101010"
         )
-        self.current_trace_name: Optional[str] = None
+        self.current_trace_name: str | None = None
 
         # Lazy initialization flags
         self._config_loaded = False
@@ -100,7 +98,7 @@ class ConfigManager:
         self._state_dirs_created = False
 
         # Initialize other globals
-        self.operations: List[dict] = []
+        self.operations: list[dict] = []
         self.all_cells_run = False
 
         # Lock for config file operations (load/save)
@@ -132,7 +130,9 @@ class ConfigManager:
             self._logger = self._setup_logging()
         return self._logger
 
-    def _validate_config_value(self, value, allowed_types=(str, int, float, bool, type(None))):
+    def _validate_config_value(
+        self, value, allowed_types=(str, int, float, bool, type(None))
+    ):
         """Validate that a config value is a safe primitive type.
 
         Args:
@@ -158,7 +158,9 @@ class ConfigManager:
 
                     # Validate that loaded_config is a dict (prevent arbitrary object attacks)
                     if not isinstance(loaded_config, dict):
-                        print(f"Warning: Invalid config format in {self.config_file}, using defaults")
+                        print(
+                            f"Warning: Invalid config format in {self.config_file}, using defaults"
+                        )
                         return
 
                     if "pcap_config" in loaded_config:
@@ -169,7 +171,8 @@ class ConfigManager:
                                 {
                                     k: v
                                     for k, v in pcap_data.items()
-                                    if k in self.pcap_config and self._validate_config_value(v)
+                                    if k in self.pcap_config
+                                    and self._validate_config_value(v)
                                 }
                             )
 
@@ -181,7 +184,8 @@ class ConfigManager:
                                 {
                                     k: v
                                     for k, v in replay_data.items()
-                                    if k in self.replay_config and self._validate_config_value(v)
+                                    if k in self.replay_config
+                                    and self._validate_config_value(v)
                                 }
                             )
 
@@ -190,22 +194,28 @@ class ConfigManager:
                     # since 0 and "" are not valid identifiers
                     session_id = loaded_config.get("current_session_id")
                     if self._validate_config_value(session_id):
-                        self.current_session_id = str(session_id) if session_id else None
+                        self.current_session_id = (
+                            str(session_id) if session_id else None
+                        )
                     case_id = loaded_config.get("current_case_id")
                     if self._validate_config_value(case_id):
                         self.current_case_id = str(case_id) if case_id else None
                     trace_name = loaded_config.get("current_trace_name")
                     if self._validate_config_value(trace_name):
-                        self.current_trace_name = str(trace_name) if trace_name else None
+                        self.current_trace_name = (
+                            str(trace_name) if trace_name else None
+                        )
 
                     # Only print in debug mode to avoid noise
                     if self.pcap_config.get("verbose_level", 0) >= 2:
                         print(f"Loaded config from {self.config_file}")
 
-                except (pickle.PickleError, IOError) as e:
+                except (OSError, pickle.PickleError) as e:
                     # Only print errors in debug mode
                     if self.pcap_config.get("verbose_level", 0) >= 1:
-                        print(f"Failed to load {self.config_file}: {e}. Using defaults.")
+                        print(
+                            f"Failed to load {self.config_file}: {e}. Using defaults."
+                        )
 
     def _setup_logging(self) -> logging.Logger:
         """Set up logging configuration."""
@@ -274,7 +284,7 @@ class ConfigManager:
                         f,
                     )
                 self.logger.info(f"Saved config to {self.config_file}")
-            except (pickle.PickleError, IOError) as e:
+            except (OSError, pickle.PickleError) as e:
                 self.logger.error(f"Failed to save {self.config_file}: {e}")
 
     def set_verbosity(self, level: int):
@@ -297,7 +307,7 @@ class ConfigManager:
         self.replay_config.update(kwargs)
         self.save_config()
 
-    def get_capture_path(self) -> Optional[str]:
+    def get_capture_path(self) -> str | None:
         """Get current capture path."""
         self._ensure_config_loaded()
         value = self.pcap_config.get("capture_path")
@@ -343,7 +353,7 @@ class ConfigManager:
         self.save_config()
         self.logger.info(f"Set session ID to {session_id}")
 
-    def get_session_id(self) -> Optional[str]:
+    def get_session_id(self) -> str | None:
         """Get the current session ID."""
         self._ensure_config_loaded()
         return self.current_session_id
@@ -355,7 +365,7 @@ class ConfigManager:
         self.save_config()
         self.logger.info(f"Set case ID to {case_id}")
 
-    def validate_case_directory(self, case_id: Optional[str] = None) -> bool:
+    def validate_case_directory(self, case_id: str | None = None) -> bool:
         """
         Validate and create the case directory if needed.
 
@@ -385,7 +395,7 @@ class ConfigManager:
             self.logger.error(f"Case directory not accessible: {path}")
             return False
 
-    def get_case_id(self) -> Optional[str]:
+    def get_case_id(self) -> str | None:
         """Get the current case ID."""
         self._ensure_config_loaded()
         return self.current_case_id
@@ -397,7 +407,7 @@ class ConfigManager:
         self.save_config()
         self.logger.info(f"Set trace name to {trace_name}")
 
-    def get_trace_name(self) -> Optional[str]:
+    def get_trace_name(self) -> str | None:
         """Get the current trace name."""
         self._ensure_config_loaded()
         return self.current_trace_name
@@ -471,7 +481,7 @@ class ConfigManager:
         self._ensure_config_loaded()
         self.replay_config["password"] = password
         self.save_config()
-        self.logger.info(f"Set password to **********")
+        self.logger.info("Set password to **********")
 
     def get_tree_name(self) -> str:
         """Get the replay server tree/share name."""
@@ -504,7 +514,7 @@ class ConfigManager:
         self.save_config()
         self.logger.info(f"Set max wait to {max_wait}")
 
-    def resolve_session_file(self, session_id: str) -> Optional[str]:
+    def resolve_session_file(self, session_id: str) -> str | None:
         """Resolve a session ID to a session file path.
 
         Args:
@@ -552,7 +562,7 @@ class ConfigManager:
 
 
 # Global configuration instance
-_config_manager: Optional[ConfigManager] = None
+_config_manager: ConfigManager | None = None
 _config_lock = threading.Lock()  # Protect singleton initialization
 
 

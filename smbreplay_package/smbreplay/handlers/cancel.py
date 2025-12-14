@@ -4,12 +4,12 @@ Handles operation cancellation using smbprotocol.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def handle_cancel(replayer, op: Dict[str, Any], **kwargs):
+def handle_cancel(replayer, op: dict[str, Any], **kwargs):
     """Handle Cancel operation using smbprotocol.
 
     Args:

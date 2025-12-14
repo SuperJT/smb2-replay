@@ -5,9 +5,11 @@
 SMB2 Lock handler for modular replay system.
 Applies file locks using smbprotocol Open object.
 """
+
 import logging
+from typing import Any
+
 from smbprotocol.exceptions import SMBException
-from typing import Any, Dict
 
 # Try to import SMB2LockElement - only available in GitHub version
 try:
@@ -27,7 +29,7 @@ class LockNotSupportedError(Exception):
     pass
 
 
-def handle_lock(replayer, op: Dict[str, Any], **kwargs):
+def handle_lock(replayer, op: dict[str, Any], **kwargs):
     """Handle Lock operation using smbprotocol Open object.
 
     Args:

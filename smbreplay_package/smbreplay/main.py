@@ -4,11 +4,12 @@ Orchestrates all components and provides a command-line interface.
 """
 
 import argparse
+import contextlib
 import logging
 import os
 import signal
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Only import lightweight modules at startup
 # Import config directly to avoid loading the entire package
@@ -18,7 +19,7 @@ get_config = smbreplay.config.get_config
 get_logger = smbreplay.config.get_logger
 set_verbosity = smbreplay.config.set_verbosity
 
-logger: Optional[logging.Logger] = None
+logger: logging.Logger | None = None
 
 
 def _get_logger():
@@ -159,7 +160,7 @@ class SMB2ReplaySystem:
         force_reingest: bool = False,
         reassembly: bool = False,
         verbose: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Ingest a PCAP file for analysis.
 
         Args:
@@ -201,7 +202,7 @@ class SMB2ReplaySystem:
             _get_logger().error("PCAP ingestion failed")
             return None
 
-    def list_sessions(self, capture_path: Optional[str] = None) -> List[str]:
+    def list_sessions(self, capture_path: str | None = None) -> list[str]:
         """List available sessions for analysis.
 
         Args:
@@ -225,7 +226,7 @@ class SMB2ReplaySystem:
 
         return self.session_manager.list_session_files(output_dir)
 
-    def list_traces(self, case_id: Optional[str] = None) -> List[str]:
+    def list_traces(self, case_id: str | None = None) -> list[str]:
         """List available trace files in the traces folder.
 
         Args:
@@ -280,10 +281,10 @@ class SMB2ReplaySystem:
     def get_session_info(
         self,
         session_file: str,
-        capture_path: Optional[str] = None,
-        file_filter: Optional[str] = None,
-        fields: Optional[List[str]] = None,
-    ) -> Optional[List[Dict[str, Any]]]:
+        capture_path: str | None = None,
+        file_filter: str | None = None,
+        fields: list[str] | None = None,
+    ) -> list[dict[str, Any]] | None:
         """Get session information for a specific session.
 
         Args:
@@ -328,7 +329,7 @@ class SMB2ReplaySystem:
         )
         return operations
 
-    def replay_operations(self, operations: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def replay_operations(self, operations: list[dict[str, Any]]) -> dict[str, Any]:
         """Replay a list of operations.
 
         Args:
@@ -367,10 +368,10 @@ class SMB2ReplaySystem:
 
     def validate_replay_readiness(
         self,
-        operations: List[Dict[str, Any]],
+        operations: list[dict[str, Any]],
         check_fs: bool = True,
         check_ops: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Validate that the system is ready for replay.
 
@@ -382,7 +383,7 @@ class SMB2ReplaySystem:
         Returns:
             Dictionary with validation results
         """
-        results: Dict[str, Any] = {
+        results: dict[str, Any] = {
             "ready": True,
             "checks": {},
             "errors": [],
@@ -419,8 +420,8 @@ class SMB2ReplaySystem:
         return results
 
     def _validate_file_system_structure(
-        self, operations: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        self, operations: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """
         Validate file system structure without connecting to SMB server.
 
@@ -512,7 +513,7 @@ class SMB2ReplaySystem:
 
     def cleanup_existing_files(
         self, tree, paths: set, dry_run: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Clean up existing files and directories that will be recreated during replay.
 
@@ -541,7 +542,9 @@ class SMB2ReplaySystem:
             return results
 
         # Normalize paths - strip leading slashes and convert to backslashes
-        normalized_paths = {path.replace("/", "\\").lstrip("\\") for path in paths if path}
+        normalized_paths = {
+            path.replace("/", "\\").lstrip("\\") for path in paths if path
+        }
 
         # Sort paths by depth (deepest first) to delete files before directories
         sorted_paths = sorted(
@@ -606,10 +609,10 @@ class SMB2ReplaySystem:
 
     def setup_file_system_infrastructure(
         self,
-        operations: List[Dict[str, Any]],
+        operations: list[dict[str, Any]],
         dry_run: bool = False,
         force: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Build file system infrastructure on SMB server for replay.
         First cleans up any existing files to ensure a clean replay.
@@ -649,6 +652,7 @@ class SMB2ReplaySystem:
             if not dry_run:
                 # Import here to avoid circular imports
                 import uuid
+
                 from smbprotocol.connection import Connection
                 from smbprotocol.exceptions import SMBException
                 from smbprotocol.open import Open
@@ -835,18 +839,12 @@ class SMB2ReplaySystem:
 
             # Cleanup
             if not dry_run and connection:
-                try:
+                with contextlib.suppress(Exception):
                     tree.disconnect()
-                except Exception:
-                    pass
-                try:
+                with contextlib.suppress(Exception):
                     session.disconnect()
-                except Exception:
-                    pass
-                try:
+                with contextlib.suppress(Exception):
                     connection.disconnect()
-                except Exception:
-                    pass
 
             # Set success based on errors
             if isinstance(results["errors"], list):
@@ -885,7 +883,7 @@ class SMB2ReplaySystem:
             results["success"] = False
             return results
 
-    def get_system_info(self) -> Dict[str, Any]:
+    def get_system_info(self) -> dict[str, Any]:
         """Get system information and status.
 
         Returns:
@@ -920,12 +918,12 @@ class SMB2ReplaySystem:
 
     def configure_replay(
         self,
-        server_ip: Optional[str] = None,
-        domain: Optional[str] = None,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        tree_name: Optional[str] = None,
-        max_wait: Optional[float] = None,
+        server_ip: str | None = None,
+        domain: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        tree_name: str | None = None,
+        max_wait: float | None = None,
     ):
         """Configure replay server settings.
 
@@ -1212,14 +1210,14 @@ Data Storage:
     config_get_parser.add_argument("key", help="Configuration key")
 
     # Info command (simplified for system status)
-    _info_parser = subparsers.add_parser(  # noqa: F841
+    _info_parser = subparsers.add_parser(
         "info", help="Show system information and status"
     )
 
     return parser
 
 
-def resolve_pcap_path(args, config) -> Optional[str]:
+def resolve_pcap_path(args, config) -> str | None:
     """Resolve PCAP file path from arguments and configuration.
 
     Args:

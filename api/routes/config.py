@@ -59,4 +59,4 @@ def get_config_value(
         value = service.get_config_value(key)
         return ConfigValueResponse(key=key, value=value)
     except SMBReplayServiceError as e:
-        raise HTTPException(status_code=400, detail=e.message)
+        raise HTTPException(status_code=400, detail=e.message) from e

@@ -4,8 +4,9 @@ Handles opportunistic lock break notifications from the server.
 """
 
 import logging
+from typing import Any
+
 from smbprotocol.exceptions import SMBException
-from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ SMB2_OPLOCK_LEVEL_II = 0x01
 SMB2_OPLOCK_LEVEL_NONE = 0x02
 
 
-def handle_oplock_break(replayer, op: Dict[str, Any], **kwargs):
+def handle_oplock_break(replayer, op: dict[str, Any], **kwargs):
     """Handle Oplock Break operation.
 
     Args:

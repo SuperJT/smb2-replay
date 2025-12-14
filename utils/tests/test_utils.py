@@ -1,73 +1,74 @@
 import json
-import os
-import pytest
+import time
+from unittest.mock import patch
+
 import pandas as pd
-from unittest.mock import patch, MagicMock
+import pytest
+
 from smbreplay.utils import (
-    get_share_relative_path,
+    Timer,
+    batch_process,
+    calculate_hash,
+    clean_filename,
+    convert_size_string,
+    create_progress_bar,
+    ensure_directory_exists,
+    flatten_dict,
     format_bytes,
     format_duration,
-    safe_json_serialize,
-    ensure_directory_exists,
     get_file_info,
+    get_share_relative_path,
+    get_terminal_size,
+    hex_dump,
+    merge_dictionaries,
+    parse_smb_timestamp,
+    retry_operation,
+    safe_json_serialize,
+    truncate_string,
     validate_ip_address,
     validate_port,
-    truncate_string,
-    clean_filename,
-    parse_smb_timestamp,
-    hex_dump,
-    calculate_hash,
-    merge_dictionaries,
-    flatten_dict,
-    batch_process,
-    retry_operation,
-    convert_size_string,
-    get_terminal_size,
-    create_progress_bar,
-    Timer,
 )
-import time
 
 
 def test_get_share_relative_path_unc():
     """Test get_share_relative_path with UNC path."""
     # Create a mock object to call the method on
-    mock_obj = type('MockObj', (), {})()
+    mock_obj = type("MockObj", (), {})()
     result = get_share_relative_path(mock_obj, "192.168.1.100\\share\\dir\\file.txt")
     assert result == "dir\\file.txt"
 
 
 def test_get_share_relative_path_share_name():
     """Test get_share_relative_path with share name."""
-    mock_obj = type('MockObj', (), {})()
+    mock_obj = type("MockObj", (), {})()
     result = get_share_relative_path(mock_obj, r"share\dir\file.txt")
     assert result == "file.txt"  # Function returns just the filename
 
 
 def test_get_share_relative_path_forward_slashes():
     """Test get_share_relative_path with forward slashes."""
-    mock_obj = type('MockObj', (), {})()
+    mock_obj = type("MockObj", (), {})()
     result = get_share_relative_path(mock_obj, r"192.168.1.100/share/dir/file.txt")
     assert result == r"dir\file.txt"  # Function uses backslashes in output
 
 
 def test_get_share_relative_path_no_share():
     """Test get_share_relative_path with no share prefix."""
-    mock_obj = type('MockObj', (), {})()
+    mock_obj = type("MockObj", (), {})()
     result = get_share_relative_path(mock_obj, r"dir/file.txt")
     assert result == "file.txt"  # Function returns just the filename
 
 
 def test_get_share_relative_path_leading_backslash():
     """Test get_share_relative_path with leading backslash."""
-    mock_obj = type('MockObj', (), {})()
+    mock_obj = type("MockObj", (), {})()
     result = get_share_relative_path(mock_obj, r"\file96.txt")
     assert result == "file96.txt"
 
 
 def test_get_share_relative_path_leading_forward_slash():
     """Test get_share_relative_path with leading forward slash."""
-    mock_obj = type('MockObj', (), {})()
+    mock_obj = type("MockObj", (), {})()
     result = get_share_relative_path(mock_obj, "/file96.txt")
     assert result == "file96.txt"
 
@@ -138,47 +139,47 @@ def test_safe_json_serialize_series():
     assert "1" in result and "2" in result and "3" in result  # Check for values in JSON
 
 
-@patch('os.makedirs')
-@patch('os.path.exists')
+@patch("os.makedirs")
+@patch("os.path.exists")
 def test_ensure_directory_exists_new(mock_exists, mock_makedirs):
     """Test ensure_directory_exists with new directory."""
     mock_exists.return_value = False
-    
+
     result = ensure_directory_exists("/path/to/new/dir")
-    
+
     assert result is True
     mock_makedirs.assert_called_once_with("/path/to/new/dir", exist_ok=True)
 
 
-@patch('os.makedirs')
-@patch('os.path.exists')
+@patch("os.makedirs")
+@patch("os.path.exists")
 def test_ensure_directory_exists_existing(mock_exists, mock_makedirs):
     """Test ensure_directory_exists with existing directory."""
     mock_exists.return_value = True
-    
+
     result = ensure_directory_exists("/path/to/existing/dir")
-    
+
     assert result is True
     # Function always calls makedirs with exist_ok=True
     mock_makedirs.assert_called_once_with("/path/to/existing/dir", exist_ok=True)
 
 
-@patch('os.makedirs')
-@patch('os.path.exists')
+@patch("os.makedirs")
+@patch("os.path.exists")
 def test_ensure_directory_exists_error(mock_exists, mock_makedirs):
     """Test ensure_directory_exists with error."""
     mock_exists.return_value = False
     mock_makedirs.side_effect = OSError("Permission denied")
-    
+
     result = ensure_directory_exists("/path/to/dir")
-    
+
     assert result is False
 
 
-@patch('os.access')
-@patch('mimetypes.guess_type')
-@patch('os.stat')
-@patch('os.path.exists')
+@patch("os.access")
+@patch("mimetypes.guess_type")
+@patch("os.stat")
+@patch("os.path.exists")
 def test_get_file_info(mock_exists, mock_stat, mock_guess_type, mock_access):
     """Test get_file_info."""
     mock_exists.return_value = True
@@ -187,9 +188,9 @@ def test_get_file_info(mock_exists, mock_stat, mock_guess_type, mock_access):
     mock_stat.return_value.st_ctime = 1640995200.0
     mock_access.side_effect = [True, True]  # readable, writable
     mock_guess_type.return_value = ("text/plain", None)
-    
+
     result = get_file_info("/path/to/file.txt")
-    
+
     assert result["size"] == 1024
     assert result["mime_type"] == "text/plain"
     assert result["exists"] is True
@@ -325,9 +326,9 @@ def test_merge_dictionaries():
     dict1 = {"a": 1, "b": 2}
     dict2 = {"c": 3, "d": 4}
     dict3 = {"a": 5, "e": 6}  # Override 'a'
-    
+
     result = merge_dictionaries(dict1, dict2, dict3)
-    
+
     assert result["a"] == 5  # Last value wins
     assert result["b"] == 2
     assert result["c"] == 3
@@ -362,7 +363,7 @@ def test_batch_process():
     """Test batch_process generator."""
     items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     batches = list(batch_process(items, batch_size=3))
-    
+
     assert len(batches) == 4
     assert batches[0] == [1, 2, 3]
     assert batches[1] == [4, 5, 6]
@@ -372,9 +373,10 @@ def test_batch_process():
 
 def test_retry_operation_success():
     """Test retry_operation with successful operation."""
+
     def success_func():
         return "success"
-    
+
     result = retry_operation(success_func)
     assert result == "success"
 
@@ -382,14 +384,14 @@ def test_retry_operation_success():
 def test_retry_operation_failure_then_success():
     """Test retry_operation with failure then success."""
     call_count = 0
-    
+
     def failing_then_success():
         nonlocal call_count
         call_count += 1
         if call_count < 3:
             raise ValueError("Temporary failure")
         return "success"
-    
+
     result = retry_operation(failing_then_success, max_retries=3)
     assert result == "success"
     assert call_count == 3
@@ -397,9 +399,10 @@ def test_retry_operation_failure_then_success():
 
 def test_retry_operation_all_failures():
     """Test retry_operation with all failures."""
+
     def always_fail():
         raise ValueError("Always fails")
-    
+
     with pytest.raises(ValueError):
         retry_operation(always_fail, max_retries=2)
 
@@ -424,13 +427,13 @@ def test_convert_size_string_decimal():
     assert convert_size_string("2.5MB") == int(2.5 * 1024 * 1024)
 
 
-@patch('shutil.get_terminal_size')
+@patch("shutil.get_terminal_size")
 def test_get_terminal_size(mock_get_terminal_size):
     """Test get_terminal_size."""
     mock_get_terminal_size.return_value = (80, 24)
-    
+
     width, height = get_terminal_size()
-    
+
     assert width == 80
     assert height == 24
 
@@ -459,7 +462,7 @@ def test_timer_context_manager():
     """Test Timer as context manager."""
     with Timer("test operation") as timer:
         time.sleep(0.01)  # Small delay
-    
+
     assert timer.elapsed > 0
     assert "test operation" in str(timer)
 
@@ -468,7 +471,7 @@ def test_timer_property():
     """Test Timer elapsed property."""
     timer = Timer("test")
     timer.start_time = time.time() - 1.0  # Simulate 1 second elapsed
-    
+
     assert timer.elapsed >= 1.0
 
 
@@ -476,7 +479,7 @@ def test_timer_str():
     """Test Timer string representation."""
     timer = Timer("test operation")
     timer.start_time = time.time() - 2.5  # Simulate 2.5 seconds elapsed
-    
+
     result = str(timer)
     assert "test operation" in result
-    assert "2.5" in result 
+    assert "2.5" in result

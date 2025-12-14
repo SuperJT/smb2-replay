@@ -3,16 +3,17 @@ Performance Monitoring Module.
 Provides utilities to measure and track performance improvements in the SMB2 replay system.
 """
 
-import gc
-
 import functools
+import gc
 import json
 import os
+import time
+from collections.abc import Callable
+from datetime import datetime
+from typing import Any
+
 import pandas as pd
 import psutil
-import time
-from datetime import datetime
-from typing import Any, Callable, Dict, Optional
 
 from .config import get_logger
 
@@ -26,7 +27,7 @@ class PerformanceMonitor:
         self.metrics = {}
         self.benchmarks = []
 
-    def measure_function(self, func_name: Optional[str] = None):
+    def measure_function(self, func_name: str | None = None):
         """Decorator to measure function performance.
 
         Args:
@@ -98,7 +99,7 @@ class PerformanceMonitor:
 
     def benchmark_dataframe_operations(
         self, df: pd.DataFrame, sample_size: int = 1000
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Benchmark common DataFrame operations.
 
         Args:
@@ -178,7 +179,7 @@ class PerformanceMonitor:
 
         return df
 
-    def memory_profile(self) -> Dict[str, float]:
+    def memory_profile(self) -> dict[str, float]:
         """Get current memory profile.
 
         Returns:
@@ -201,7 +202,7 @@ class PerformanceMonitor:
 
     def compare_implementations(
         self, old_func: Callable, new_func: Callable, *args, runs: int = 3, **kwargs
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Compare performance between old and new implementations.
 
         Args:
@@ -321,7 +322,7 @@ class PerformanceMonitor:
 
         logger.info(f"Performance report saved to: {filepath}")
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get performance summary.
 
         Returns:
@@ -347,7 +348,7 @@ class PerformanceMonitor:
 
 
 # Global performance monitor instance
-_performance_monitor: Optional[PerformanceMonitor] = None
+_performance_monitor: PerformanceMonitor | None = None
 
 
 def get_performance_monitor() -> PerformanceMonitor:
@@ -358,7 +359,7 @@ def get_performance_monitor() -> PerformanceMonitor:
     return _performance_monitor
 
 
-def benchmark_optimizations(sample_data_path: Optional[str] = None) -> Dict[str, Any]:
+def benchmark_optimizations(sample_data_path: str | None = None) -> dict[str, Any]:
     """Run comprehensive performance benchmarks.
 
     Args:

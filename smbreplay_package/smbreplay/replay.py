@@ -11,15 +11,18 @@ SMB2 Replay Module.
 Handles SMB2 session replay using smbprotocol library.
 """
 
+import contextlib
 import subprocess
 import time
 import uuid
+from collections.abc import Callable
+from typing import Any
+
 from smbprotocol.connection import Connection
 from smbprotocol.exceptions import SMBException
 from smbprotocol.open import Open
 from smbprotocol.session import Session
 from smbprotocol.tree import TreeConnect
-from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .config import get_config, get_logger
 from .constants import SMB2_OP_NAME_DESC
@@ -30,16 +33,15 @@ logger = get_logger()
 class SMB2Replayer:
     """Handles SMB2 session replay functionality."""
 
-    def handle_read(self, op: Dict[str, Any]):
+    def handle_read(self, op: dict[str, Any]):
         """Handle Read operation using modular handler."""
         return read_handler(self, op)
 
-    def handle_close(self, op: Dict[str, Any]):
+    def handle_close(self, op: dict[str, Any]):
         """Handle Close operation using modular handler."""
         return close_handler(self, op)
 
     def __init__(self):
-
         logger = get_logger()  # Initialize logger here
         self.logger = logger
         self.config = get_config()
@@ -60,7 +62,7 @@ class SMB2Replayer:
         self.ping_enabled = enabled
         self.logger.info(f"Ping functionality {'enabled' if enabled else 'disabled'}")
 
-    def send_replay_start_ping(self, server_ip: Optional[str] = None):
+    def send_replay_start_ping(self, server_ip: str | None = None):
         """Send a ping to the replay server to indicate replay is starting.
 
         Args:
@@ -123,9 +125,9 @@ class SMB2Replayer:
 
     def validate_response(
         self,
-        operation: Dict[str, Any],
+        operation: dict[str, Any],
         actual_status: str,
-        actual_error: Optional[str] = None,
+        actual_error: str | None = None,
     ):
         """Validate that the actual server response matches the expected response from Parquet.
 
@@ -210,7 +212,7 @@ class SMB2Replayer:
             if actual_error:
                 self.logger.warning(f"   Error: {actual_error}")
 
-    def get_response_validation_results(self) -> Dict[str, Any]:
+    def get_response_validation_results(self) -> dict[str, Any]:
         """Get response validation results.
 
         Returns:
@@ -240,72 +242,72 @@ class SMB2Replayer:
             "details": results,
         }
 
-    def handle_ioctl(self, op: Dict[str, Any]):
+    def handle_ioctl(self, op: dict[str, Any]):
         """Handle IOCTL operation (stub)."""
         self.logger.debug(f"IOCTL: Not implemented. op={op}")
 
-    def handle_query_directory(self, op: Dict[str, Any]):
+    def handle_query_directory(self, op: dict[str, Any]):
         """Handle Query Directory operation (stub)."""
         self.logger.debug(f"Query Directory: Not implemented. op={op}")
 
-    def handle_query_info(self, op: Dict[str, Any]):
+    def handle_query_info(self, op: dict[str, Any]):
         """Handle Query Info operation (stub)."""
         self.logger.debug(f"Query Info: Not implemented. op={op}")
 
-    def handle_negotiate(self, op: Dict[str, Any]):
+    def handle_negotiate(self, op: dict[str, Any]):
         self.logger.info(
             "Negotiate: Using already established connection for replay. Parameters: %s",
             op,
         )
         # Optionally validate parameters or log them
 
-    def handle_session_setup(self, op: Dict[str, Any]):
+    def handle_session_setup(self, op: dict[str, Any]):
         self.logger.info(
             "Session Setup: Using already established session for replay. Parameters: %s",
             op,
         )
         # Optionally validate parameters or log them
 
-    def handle_logoff(self, op: Dict[str, Any]):
+    def handle_logoff(self, op: dict[str, Any]):
         self.logger.info(
             "Logoff: Skipping, as session teardown is handled at the end of replay. Parameters: %s",
             op,
         )
         # Optionally disconnect session if this is the last operation
 
-    def handle_tree_disconnect(self, op: Dict[str, Any]):
+    def handle_tree_disconnect(self, op: dict[str, Any]):
         self.logger.info(
             "Tree Disconnect: Skipping, as tree teardown is handled at the end of replay. Parameters: %s",
             op,
         )
         # Optionally disconnect tree if this is the last operation
 
-    def handle_flush(self, op: Dict[str, Any]):
+    def handle_flush(self, op: dict[str, Any]):
         self.logger.info("Flush: Not implemented. Parameters: %s", op)
 
-    def handle_lock(self, op: Dict[str, Any]):
+    def handle_lock(self, op: dict[str, Any]):
         return lock_handler(self, op)
 
-    def handle_echo(self, op: Dict[str, Any]):
+    def handle_echo(self, op: dict[str, Any]):
         self.logger.info("Echo: Not implemented. Parameters: %s", op)
 
-    def handle_set_info(self, op: Dict[str, Any]):
+    def handle_set_info(self, op: dict[str, Any]):
         self.logger.info("Set Info: Not implemented. Parameters: %s", op)
 
-    def handle_oplock_break(self, op: Dict[str, Any]):
+    def handle_oplock_break(self, op: dict[str, Any]):
         self.logger.info("Oplock Break: Not implemented. Parameters: %s", op)
 
-    def handle_lease_break(self, op: Dict[str, Any]):
+    def handle_lease_break(self, op: dict[str, Any]):
         """Handle Lease Break operation using modular handler (SMB3)."""
         return handle_lease_break(self, op)
 
-    def get_replay_config(self) -> Dict[str, Any]:
+    def get_replay_config(self) -> dict[str, Any]:
         """Get replay configuration."""
         return self.config.replay_config.copy()
 
     def determine_create_type_and_action(
-        self, operation: Dict[str, Any], all_operations: List[Dict[str, Any]]
-    ) -> Tuple[str, str]:
+        self, operation: dict[str, Any], all_operations: list[dict[str, Any]]
+    ) -> tuple[str, str]:
         """
         Determine if a create operation should create a file or directory, and if it is a new create or open.
         Returns a tuple: (type, action) where type is 'file' or 'directory', and action is 'create' or 'open'.
@@ -718,15 +720,15 @@ class SMB2Replayer:
         else:
             logger.info(f"✅ All {len(paths)} paths are accessible for replay")
 
-    def handle_tree_connect(self, session: Session, op: Dict[str, Any]):
+    def handle_tree_connect(self, session: Session, op: dict[str, Any]):
         """Handle Tree Connect operation using handler module."""
         return handle_tree_connect(self, session, op)
 
-    def handle_write(self, op: Dict[str, Any]):
+    def handle_write(self, op: dict[str, Any]):
         """Handle Write operation using modular handler."""
         return write_handler(self, op)
 
-    def handle_response(self, op: Dict[str, Any], cmd: int):
+    def handle_response(self, op: dict[str, Any], cmd: int):
         """Handle response operations to update mappings.
 
         Args:
@@ -751,7 +753,7 @@ class SMB2Replayer:
                 )
                 self.state["last_new_fid"] = None
 
-    def handle_change_notify(self, op: Dict[str, Any]):
+    def handle_change_notify(self, op: dict[str, Any]):
         """Handle Change Notify operation using smbprotocol.
 
         Args:
@@ -773,7 +775,7 @@ class SMB2Replayer:
         else:
             logger.warning(f"Change Notify: No mapping found for fid {original_fid}")
 
-    def handle_cancel(self, op: Dict[str, Any]):
+    def handle_cancel(self, op: dict[str, Any]):
         """Handle Cancel operation using smbprotocol.
 
         Args:
@@ -791,9 +793,9 @@ class SMB2Replayer:
 
     def replay_session(
         self,
-        selected_operations: List[Dict[str, Any]],
-        status_callback: Optional[Callable] = None,
-    ) -> Dict[str, Any]:
+        selected_operations: list[dict[str, Any]],
+        status_callback: Callable | None = None,
+    ) -> dict[str, Any]:
         r"""
         Replay selected SMB2 operations using smbprotocol.
 
@@ -816,7 +818,9 @@ class SMB2Replayer:
             logger.warning("Invalid port value, using default 445")
             port = 445
         if port < 1 or port > 65535:
-            logger.warning(f"Port {port} out of valid range (1-65535), using default 445")
+            logger.warning(
+                f"Port {port} out of valid range (1-65535), using default 445"
+            )
             port = 445
 
         domain = replay_config.get("domain", "")
@@ -908,7 +912,7 @@ class SMB2Replayer:
                     if cmd not in supported_commands:
                         frame = op.get("Frame", "N/A")
                         issues.append(
-                            f"Operation {i+1} (Frame {frame}): Unsupported command {cmd} ({cmd_name})"
+                            f"Operation {i + 1} (Frame {frame}): Unsupported command {cmd} ({cmd_name})"
                         )
                         continue
                 except Exception as e:
@@ -980,18 +984,12 @@ class SMB2Replayer:
 
             # Clean up
             logger.debug("Disconnecting from SMB server")
-            try:
+            with contextlib.suppress(Exception):
                 tree.disconnect()
-            except Exception:
-                pass
-            try:
+            with contextlib.suppress(Exception):
                 session.disconnect()
-            except Exception:
-                pass
-            try:
+            with contextlib.suppress(Exception):
                 connection.disconnect()
-            except Exception:
-                pass
             logger.info("Disconnected from SMB server")
 
             # Get response validation results
@@ -1099,7 +1097,7 @@ class SMB2Replayer:
             19: lambda op: handle_lease_break(self, op),  # SMB2_LEASE_BREAK (SMB3)
         }
 
-    def validate_operations(self, operations: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def validate_operations(self, operations: list[dict[str, Any]]) -> dict[str, Any]:
         """Validate operations before replay.
 
         Args:
@@ -1123,24 +1121,17 @@ class SMB2Replayer:
                 cmd = int(cmd_raw) if str(cmd_raw).isdigit() else -1
 
                 if cmd not in supported_commands:
-                    issues.append(f"Operation {i+1}: Unsupported command {cmd}")
+                    issues.append(f"Operation {i + 1}: Unsupported command {cmd}")
                     continue
 
                 # Check required fields based on command type
                 if cmd == 5:  # Create
                     if not op.get("smb2.filename"):
                         issues.append(
-                            f"Operation {i+1}: Create operation missing filename"
+                            f"Operation {i + 1}: Create operation missing filename"
                         )
 
-                elif cmd in [6, 8, 9]:  # Close, Read, Write
-                    fid = op.get("smb2.fid", "")
-                    # Only validate fid if it's required (skip empty responses)
-                    if not fid or str(fid).strip() == "" or str(fid) == "N/A":
-                        # This is likely a response frame without fid, which is normal
-                        pass
-
-                elif cmd == 10:  # Lock
+                elif cmd in [6, 8, 9] or cmd == 10:  # Close, Read, Write
                     fid = op.get("smb2.fid", "")
                     # Only validate fid if it's required (skip empty responses)
                     if not fid or str(fid).strip() == "" or str(fid) == "N/A":
@@ -1160,7 +1151,7 @@ class SMB2Replayer:
                     pass
 
             except (ValueError, TypeError) as e:
-                issues.append(f"Operation {i+1}: Invalid command format: {e}")
+                issues.append(f"Operation {i + 1}: Invalid command format: {e}")
 
         return {
             "valid": len(issues) == 0,
@@ -1173,7 +1164,7 @@ class SMB2Replayer:
             ),
         }
 
-    def get_supported_commands(self) -> Dict[int, str]:
+    def get_supported_commands(self) -> dict[int, str]:
         return {
             cmd: SMB2_OP_NAME_DESC.get(cmd, ("Unknown",))[0]
             for cmd in self.command_handlers.keys()
@@ -1188,7 +1179,7 @@ class SMB2Replayer:
 
 
 # Global replayer instance
-_replayer: Optional[SMB2Replayer] = None
+_replayer: SMB2Replayer | None = None
 
 
 def get_replayer() -> SMB2Replayer:
@@ -1200,9 +1191,9 @@ def get_replayer() -> SMB2Replayer:
 
 
 def replay_session(
-    selected_operations: List[Dict[str, Any]],
-    status_callback: Optional[Callable] = None,
-) -> Dict[str, Any]:
+    selected_operations: list[dict[str, Any]],
+    status_callback: Callable | None = None,
+) -> dict[str, Any]:
     """Replay selected SMB2 operations.
 
     Args:
@@ -1215,7 +1206,7 @@ def replay_session(
     return get_replayer().replay_session(selected_operations, status_callback)
 
 
-def validate_operations(operations: List[Dict[str, Any]]) -> Dict[str, Any]:
+def validate_operations(operations: list[dict[str, Any]]) -> dict[str, Any]:
     """Validate operations before replay.
 
     Args:
@@ -1227,6 +1218,6 @@ def validate_operations(operations: List[Dict[str, Any]]) -> Dict[str, Any]:
     return get_replayer().validate_operations(operations)
 
 
-def get_supported_commands() -> Dict[int, str]:
+def get_supported_commands() -> dict[int, str]:
     """Get list of supported SMB2 commands."""
     return get_replayer().get_supported_commands()

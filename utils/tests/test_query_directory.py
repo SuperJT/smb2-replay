@@ -1,7 +1,7 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from smbreplay.handlers import query_directory
+
 from smbreplay.constants import FILE_INFO_CLASSES
+from smbreplay.handlers import query_directory
 
 
 def make_file_open_mock():

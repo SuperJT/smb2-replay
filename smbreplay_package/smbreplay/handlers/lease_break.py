@@ -4,8 +4,9 @@ Handles SMB2_LEASE_BREAK (0x13) operations for SMB3 replay.
 """
 
 import logging
+from typing import Any
+
 from smbprotocol.exceptions import SMBException
-from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 SMB2_LEASE_BREAK_ACK_FLAG_ACK_REQUIRED = 0x01
 
 
-def handle_lease_break(replayer, op: Dict[str, Any], **kwargs):
+def handle_lease_break(replayer, op: dict[str, Any], **kwargs):
     """Handle SMB2_LEASE_BREAK operation (SMB3).
 
     Args:

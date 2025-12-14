@@ -4,15 +4,16 @@ Queries directory contents and file information using smbprotocol Open object.
 """
 
 import logging
+from typing import Any
+
 from smbprotocol.exceptions import SMBException
-from typing import Any, Dict, Optional
 
 from ..constants import FILE_INFO_CLASSES, SMB2_QUERY_DIRECTORY_FLAGS
 
 logger = logging.getLogger(__name__)
 
 
-def handle_query_directory(replayer, op: Dict[str, Any], **kwargs):
+def handle_query_directory(replayer, op: dict[str, Any], **kwargs):
     """Handle Query Directory operation using smbprotocol Open object.
 
     Args:
@@ -71,7 +72,7 @@ def handle_query_directory(replayer, op: Dict[str, Any], **kwargs):
         index_specified = bool(
             flags & SMB2_QUERY_DIRECTORY_FLAGS["SMB2_INDEX_SPECIFIED"]
         )
-        _reopen = bool(flags & SMB2_QUERY_DIRECTORY_FLAGS["SMB2_REOPEN"])  # noqa: F841
+        _reopen = bool(flags & SMB2_QUERY_DIRECTORY_FLAGS["SMB2_REOPEN"])
 
         replayer.logger.debug(
             f"Query Directory: fid={original_fid}, file_info_class={file_info_class}, "
@@ -131,7 +132,7 @@ def _query_directory_info(
     output_buffer_length: int,
     restart_scan: bool = False,
     return_single_entry: bool = False,
-    file_index: Optional[int] = None,
+    file_index: int | None = None,
 ):
     """Query directory information with specified parameters."""
     try:

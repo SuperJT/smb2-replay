@@ -4,13 +4,14 @@ Sends echo/ping requests to the SMB server using smbprotocol.
 """
 
 import logging
+from typing import Any
+
 from smbprotocol.exceptions import SMBException
-from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
 
-def handle_echo(replayer, op: Dict[str, Any], **kwargs):
+def handle_echo(replayer, op: dict[str, Any], **kwargs):
     """Handle Echo operation using smbprotocol.
 
     Args:
@@ -38,15 +39,17 @@ def handle_echo(replayer, op: Dict[str, Any], **kwargs):
                 session.echo()
                 completed += 1
                 replayer.logger.debug(
-                    f"Echo: Successfully sent echo request {i+1}/{echo_count}"
+                    f"Echo: Successfully sent echo request {i + 1}/{echo_count}"
                 )
             except SMBException as e:
                 replayer.logger.error(
-                    f"Echo: Failed to send echo request {i+1}/{echo_count}: {e}"
+                    f"Echo: Failed to send echo request {i + 1}/{echo_count}: {e}"
                 )
                 break
 
-        replayer.logger.info(f"Echo: Completed {completed}/{echo_count} echo request(s)")
+        replayer.logger.info(
+            f"Echo: Completed {completed}/{echo_count} echo request(s)"
+        )
 
         # Validate response if expected status is available
         expected_status = op.get("smb2.nt_status", "0x00000000")

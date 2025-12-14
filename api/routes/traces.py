@@ -1,7 +1,5 @@
 """Trace/PCAP management endpoints."""
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.models.trace import IngestRequest, IngestResult, TraceFile, TraceListResponse
@@ -16,7 +14,7 @@ router = APIRouter(prefix="/api/traces", tags=["traces"])
 
 @router.get("", response_model=TraceListResponse)
 def list_traces(
-    case_id: Optional[str] = Query(None, description="Case ID to list traces for"),
+    case_id: str | None = Query(None, description="Case ID to list traces for"),
     service: SMBReplayService = Depends(get_smbreplay_service),
 ) -> TraceListResponse:
     """List available trace files.
@@ -35,7 +33,7 @@ def list_traces(
             total=len(traces),
         )
     except SMBReplayServiceError as e:
-        raise HTTPException(status_code=400, detail=e.message)
+        raise HTTPException(status_code=400, detail=e.message) from e
 
 
 @router.post("/ingest", response_model=IngestResult)

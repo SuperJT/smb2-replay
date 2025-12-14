@@ -8,22 +8,24 @@ import asyncio
 import gc
 import json
 import os
-import pandas as pd
-import psutil
-import pyarrow.parquet as pq
 import time
 import traceback
 from collections import OrderedDict
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
+
+import pandas as pd
+import psutil
+import pyarrow.parquet as pq
 
 from .config import get_config, get_logger
-from .database import get_database_client
 from .constants import (
     CRITICAL_FIELDS,
     check_tshark_availability,
     get_all_fields,
 )
+from .database import get_database_client
 from .tshark_processor import (
     build_tshark_command,
     create_session_directory,
@@ -105,7 +107,7 @@ def normalize_cmd_vectorized(cmd_series: pd.Series) -> pd.Series:
     return cmd_series.apply(normalize_single_cmd)
 
 
-def extract_unique_sessions_optimized(df: pd.DataFrame) -> List[str]:
+def extract_unique_sessions_optimized(df: pd.DataFrame) -> list[str]:
     """Extract unique session IDs from DataFrame using vectorized operations.
 
     Args:
@@ -159,9 +161,9 @@ def extract_unique_sessions_optimized(df: pd.DataFrame) -> List[str]:
 
 def extract_sessions_from_dataframe_optimized(
     df: pd.DataFrame,
-    unique_sesids: List[str],
-    status_callback: Optional[Callable] = None,
-) -> Dict[str, pd.DataFrame]:
+    unique_sesids: list[str],
+    status_callback: Callable | None = None,
+) -> dict[str, pd.DataFrame]:
     """Extract individual sessions from main DataFrame using optimized operations.
 
     Args:
@@ -191,7 +193,9 @@ def extract_sessions_from_dataframe_optimized(
         # Efficient boolean indexing
         # Use 'x is not None' instead of 'if x' to handle empty sets correctly
         # (empty set() is falsy but still valid for 'in' check)
-        session_mask = df_sesids_normalized.apply(lambda x: sesid in x if x is not None else False)
+        session_mask = df_sesids_normalized.apply(
+            lambda x: sesid in x if x is not None else False
+        )
         session_df = df[session_mask].copy()
 
         if not session_df.empty:
@@ -243,7 +247,7 @@ def _convert_numpy_types(obj):
 def save_session_metadata(
     case_number: str,
     trace_name: str,
-    sessions: Dict[str, pd.DataFrame],
+    sessions: dict[str, pd.DataFrame],
     output_dir: str,
 ):
     """Save session metadata to JSON with performance stats.
@@ -274,8 +278,8 @@ def save_session_metadata(
                     unique_commands = 0
 
             session_details[sesid] = {
-                "frame_count": int(len(df)),
-                "columns": int(len(df.columns)),
+                "frame_count": len(df),
+                "columns": len(df.columns),
                 "memory_mb": round(memory_mb, 2),
                 "unique_commands": unique_commands,
             }
@@ -283,7 +287,7 @@ def save_session_metadata(
         metadata = {
             "case_number": case_number,
             "trace_name": trace_name,
-            "session_count": int(len(sessions)),
+            "session_count": len(sessions),
             "total_memory_mb": round(total_memory, 2),
             "session_details": session_details,
             "optimization_applied": True,
@@ -303,7 +307,7 @@ def save_session_metadata(
 
     except Exception as e:
         logger.critical(
-            f"Error in save_session_metadata: {str(e)}\n{traceback.format_exc()}"
+            f"Error in save_session_metadata: {e!s}\n{traceback.format_exc()}"
         )
         raise
 
@@ -314,8 +318,8 @@ async def save_sessions_to_database(
     capture_path: str,
     packet_count: int,
     file_size: int,
-    sessions: Dict[str, pd.DataFrame],
-    status_callback: Optional[Callable] = None,
+    sessions: dict[str, pd.DataFrame],
+    status_callback: Callable | None = None,
 ) -> None:
     """Save trace and session data to PostgreSQL database.
 
@@ -377,14 +381,10 @@ async def save_sessions_to_database(
             trace_id=trace_id, status="COMPLETED", ingested_at=datetime.now()
         )
 
-        logger.info(
-            f"Successfully saved all {len(sessions)} sessions to database"
-        )
+        logger.info(f"Successfully saved all {len(sessions)} sessions to database")
 
     except Exception as e:
-        logger.error(
-            f"Error saving to database: {str(e)}\n{traceback.format_exc()}"
-        )
+        logger.error(f"Error saving to database: {e!s}\n{traceback.format_exc()}")
         # Try to mark trace as failed
         try:
             if "trace_id" in locals():
@@ -425,7 +425,7 @@ def normalize_sesid(sesid_str) -> list[str]:
             }
         return sorted(sesids)  # Convert to sorted list for serialization
     except Exception as e:
-        logger.critical(f"Error in normalize_sesid: {str(e)}\n{traceback.format_exc()}")
+        logger.critical(f"Error in normalize_sesid: {e!s}\n{traceback.format_exc()}")
         return []
 
 
@@ -452,7 +452,11 @@ def normalize_cmd(cmd_str) -> list[str]:
             if not cmd_str:  # Empty set
                 return []
             # Filter out None/NaN values from the set
-            valid_items = {item for item in cmd_str if item is not None and not (isinstance(item, float) and pd.isna(item))}
+            valid_items = {
+                item
+                for item in cmd_str
+                if item is not None and not (isinstance(item, float) and pd.isna(item))
+            }
             return sorted(str(item).strip() for item in valid_items if item)
         # For scalar values
         elif pd.isna(cmd_str):
@@ -464,31 +468,31 @@ def normalize_cmd(cmd_str) -> list[str]:
             return sorted(str(item).strip() for item in cmd_str if item)
         return sorted(item.strip() for item in str(cmd_str).split(",") if item)
     except Exception as e:
-        logger.critical(f"Error in normalize_cmd: {str(e)}\n{traceback.format_exc()}")
+        logger.critical(f"Error in normalize_cmd: {e!s}\n{traceback.format_exc()}")
         return []
 
 
-def extract_unique_sessions(df: pd.DataFrame) -> List[str]:
+def extract_unique_sessions(df: pd.DataFrame) -> list[str]:
     """Extract unique session IDs from DataFrame."""
     return extract_unique_sessions_optimized(df)
 
 
 def extract_sessions_from_dataframe(
     df: pd.DataFrame,
-    unique_sesids: List[str],
-    status_callback: Optional[Callable] = None,
-) -> Dict[str, pd.DataFrame]:
+    unique_sesids: list[str],
+    status_callback: Callable | None = None,
+) -> dict[str, pd.DataFrame]:
     """Extract individual sessions from main DataFrame."""
     return extract_sessions_from_dataframe_optimized(df, unique_sesids, status_callback)
 
 
 def run_ingestion(
-    capture_path: Optional[str] = None,
+    capture_path: str | None = None,
     reassembly_enabled: bool = False,
     force_reingest: bool = False,
     verbose: bool = False,
-    status_callback: Optional[Callable] = None,
-) -> Optional[Dict[str, Any]]:
+    status_callback: Callable | None = None,
+) -> dict[str, Any] | None:
     """Orchestrate PCAP ingestion and session extraction with performance optimizations.
 
     Args:
@@ -569,12 +573,29 @@ def run_ingestion(
             )
 
         # Extract case number from path
-        parts = capture_path.split(os.sep)
+        # The case number is the first directory component after TRACES_FOLDER
+        # e.g., /stingray/2010101010/smb-trace.pcapng -> case_number = "2010101010"
         case_number = "local_case"  # Default for local development
-        if "cases" in parts:
-            cases_index = parts.index("cases")
-            if cases_index + 1 < len(parts):
-                case_number = parts[cases_index + 1]
+        traces_folder = get_config().get_traces_folder()
+
+        # Normalize both paths for comparison (resolve symlinks, remove trailing slashes)
+        norm_capture = os.path.normpath(os.path.realpath(capture_path))
+        norm_traces = os.path.normpath(os.path.realpath(traces_folder))
+
+        # Check if capture path is within traces folder
+        if norm_capture.startswith(norm_traces + os.sep):
+            # Get the relative path after traces folder
+            relative_path = norm_capture[len(norm_traces) :].lstrip(os.sep)
+            parts = relative_path.split(os.sep)
+            if parts and parts[0]:
+                case_number = parts[0]
+        else:
+            # Fallback: look for "cases" in path for backward compatibility
+            parts = capture_path.split(os.sep)
+            if "cases" in parts:
+                cases_index = parts.index("cases")
+                if cases_index + 1 < len(parts):
+                    case_number = parts[cases_index + 1]
 
         logger.info(f"Ingesting {trace_name} for case {case_number}")
         status_callback(f"Ingesting {trace_name} for case {case_number}")
@@ -690,7 +711,9 @@ def run_ingestion(
                     status_callback("Successfully saved sessions to database")
                 except Exception as db_error:
                     logger.error(f"Failed to save to database: {db_error}")
-                    status_callback(f"Error - Failed to save sessions to database: {str(db_error)}")
+                    status_callback(
+                        f"Error - Failed to save sessions to database: {db_error!s}"
+                    )
                     raise  # Fail the ingestion if database save fails in database-only mode
 
             else:
@@ -729,8 +752,8 @@ def run_ingestion(
                 logger.info("Enhanced session metadata saved")
 
         except Exception as e:
-            logger.critical(f"Error saving sessions or metadata: {str(e)}")
-            status_callback(f"Error - Failed to save sessions or metadata: {str(e)}")
+            logger.critical(f"Error saving sessions or metadata: {e!s}")
+            status_callback(f"Error - Failed to save sessions or metadata: {e!s}")
             return None
 
         # Calculate performance metrics
@@ -762,11 +785,11 @@ def run_ingestion(
     except Exception as e:
         logger.critical(f"Error in run_ingestion: {e}\n{traceback.format_exc()}")
         if status_callback is not None:
-            status_callback(f"Error in run_ingestion: {str(e)}")
+            status_callback(f"Error in run_ingestion: {e!s}")
         return None
 
 
-def load_ingested_data(case_number: str, trace_name: str) -> Optional[Dict[str, Any]]:
+def load_ingested_data(case_number: str, trace_name: str) -> dict[str, Any] | None:
     """Load previously ingested data from Parquet files.
 
     Args:
@@ -796,7 +819,7 @@ def load_ingested_data(case_number: str, trace_name: str) -> Optional[Dict[str, 
         # Load session metadata
         metadata_path = os.path.join(output_dir, "session_metadata.json")
         if os.path.exists(metadata_path):
-            with open(metadata_path, "r") as f:
+            with open(metadata_path) as f:
                 metadata = json.load(f)
             logger.info(f"Loaded metadata for {metadata['session_count']} sessions")
         else:
@@ -831,7 +854,7 @@ def load_ingested_data(case_number: str, trace_name: str) -> Optional[Dict[str, 
         return None
 
 
-def validate_ingested_data(data: Dict[str, Any]) -> bool:
+def validate_ingested_data(data: dict[str, Any]) -> bool:
     """Validate ingested data for completeness and integrity.
 
     Args:

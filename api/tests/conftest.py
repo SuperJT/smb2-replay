@@ -2,8 +2,8 @@
 
 import os
 import sys
-from typing import Any, Dict, Generator, List, Optional
-from unittest.mock import MagicMock, patch
+from collections.abc import Generator
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -28,7 +28,7 @@ class MockSMB2ReplaySystem:
     def setup_system_full(self) -> bool:
         return True
 
-    def get_system_info(self) -> Dict[str, Any]:
+    def get_system_info(self) -> dict[str, Any]:
         return {
             "tshark_available": True,
             "capture_path": "/test/capture.pcap",
@@ -39,10 +39,10 @@ class MockSMB2ReplaySystem:
             "packet_count": 1000,
         }
 
-    def list_traces(self, case_id: Optional[str] = None) -> List[str]:
+    def list_traces(self, case_id: str | None = None) -> list[str]:
         return ["trace1.pcap", "trace2.pcapng", "subdir/trace3.pcap"]
 
-    def list_sessions(self, capture_path: Optional[str] = None) -> List[str]:
+    def list_sessions(self, capture_path: str | None = None) -> list[str]:
         return [
             "smb2_session_0x1234567890abcdef.parquet",
             "smb2_session_0xfedcba0987654321.parquet",
@@ -51,10 +51,10 @@ class MockSMB2ReplaySystem:
     def get_session_info(
         self,
         session_file: str,
-        capture_path: Optional[str] = None,
-        file_filter: Optional[str] = None,
-        fields: Optional[List[str]] = None,
-    ) -> Optional[List[Dict[str, Any]]]:
+        capture_path: str | None = None,
+        file_filter: str | None = None,
+        fields: list[str] | None = None,
+    ) -> list[dict[str, Any]] | None:
         if "notfound" in session_file:
             return None
         return [
@@ -82,7 +82,7 @@ class MockSMB2ReplaySystem:
         force_reingest: bool = False,
         reassembly: bool = False,
         verbose: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         if "invalid" in pcap_path:
             return None
         return {
@@ -93,10 +93,10 @@ class MockSMB2ReplaySystem:
 
     def validate_replay_readiness(
         self,
-        operations: List[Dict[str, Any]],
+        operations: list[dict[str, Any]],
         check_fs: bool = True,
         check_ops: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         return {
             "ready": True,
             "checks": {
@@ -119,10 +119,10 @@ class MockSMB2ReplaySystem:
 
     def setup_file_system_infrastructure(
         self,
-        operations: List[Dict[str, Any]],
+        operations: list[dict[str, Any]],
         dry_run: bool = False,
         force: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         return {
             "success": True,
             "directories_created": 3,
@@ -132,7 +132,7 @@ class MockSMB2ReplaySystem:
             "dry_run": dry_run,
         }
 
-    def replay_operations(self, operations: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def replay_operations(self, operations: list[dict[str, Any]]) -> dict[str, Any]:
         return {
             "success": True,
             "total_operations": len(operations),
@@ -174,7 +174,7 @@ class MockConfigManager:
     def set_traces_folder(self, path: str):
         self._config["traces_folder"] = path
 
-    def get_capture_path(self) -> Optional[str]:
+    def get_capture_path(self) -> str | None:
         return self._config["capture_path"]
 
     def set_capture_path(self, path: str):
@@ -183,19 +183,19 @@ class MockConfigManager:
     def get_verbosity_level(self) -> int:
         return self._config["verbosity_level"]
 
-    def get_session_id(self) -> Optional[str]:
+    def get_session_id(self) -> str | None:
         return self._config["session_id"]
 
     def set_session_id(self, session_id: str):
         self._config["session_id"] = session_id
 
-    def get_case_id(self) -> Optional[str]:
+    def get_case_id(self) -> str | None:
         return self._config["case_id"]
 
     def set_case_id(self, case_id: str):
         self._config["case_id"] = case_id
 
-    def get_trace_name(self) -> Optional[str]:
+    def get_trace_name(self) -> str | None:
         return self._config["trace_name"]
 
     def set_trace_name(self, name: str):

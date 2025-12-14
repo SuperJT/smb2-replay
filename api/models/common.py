@@ -1,10 +1,9 @@
 """Common models shared across the API."""
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
-
+from pydantic import BaseModel, Field
 
 # Path traversal prevention pattern
 # Detects: "..", "/..", "../", and null bytes
@@ -13,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 PATH_TRAVERSAL_PATTERN = re.compile(r"(\.\.|/\.\.|\.\./)|\x00")
 
 
-def validate_safe_path(value: Optional[str], field_name: str = "path") -> Optional[str]:
+def validate_safe_path(value: str | None, field_name: str = "path") -> str | None:
     """Validate that a path doesn't contain traversal sequences.
 
     Args:
@@ -41,7 +40,9 @@ def validate_safe_path(value: Optional[str], field_name: str = "path") -> Option
     return value
 
 
-def validate_safe_identifier(value: Optional[str], field_name: str = "identifier") -> Optional[str]:
+def validate_safe_identifier(
+    value: str | None, field_name: str = "identifier"
+) -> str | None:
     """Validate that an identifier is safe (alphanumeric with limited special chars).
 
     Args:
@@ -74,14 +75,16 @@ class ErrorResponse(BaseModel):
     """Standard error response."""
 
     error: str = Field(..., description="Error message")
-    detail: Optional[str] = Field(None, description="Detailed error information")
-    code: Optional[str] = Field(None, description="Error code for programmatic handling")
+    detail: str | None = Field(None, description="Detailed error information")
+    code: str | None = Field(None, description="Error code for programmatic handling")
 
 
 class HealthResponse(BaseModel):
     """Health check response."""
 
-    status: str = Field(..., description="Health status", examples=["ok", "degraded", "error"])
+    status: str = Field(
+        ..., description="Health status", examples=["ok", "degraded", "error"]
+    )
     version: str = Field(..., description="API version")
     tshark_available: bool = Field(..., description="Whether tshark is available")
 
@@ -91,14 +94,14 @@ class SystemInfo(BaseModel):
 
     version: str = Field(..., description="API version")
     tshark_available: bool = Field(..., description="Whether tshark is available")
-    capture_path: Optional[str] = Field(None, description="Current capture path")
+    capture_path: str | None = Field(None, description="Current capture path")
     capture_valid: bool = Field(..., description="Whether capture path is valid")
-    supported_commands: Dict[str, str] = Field(
+    supported_commands: dict[str, str] = Field(
         ..., description="Mapping of command codes to names"
     )
     traces_folder: str = Field(..., description="Path to traces folder")
     verbosity_level: int = Field(..., description="Current verbosity level")
-    packet_count: Optional[int] = Field(None, description="Number of packets in capture")
+    packet_count: int | None = Field(None, description="Number of packets in capture")
 
 
 class JobStatus(BaseModel):
@@ -110,9 +113,9 @@ class JobStatus(BaseModel):
         description="Job status",
         examples=["pending", "running", "completed", "failed"],
     )
-    progress: Optional[int] = Field(
+    progress: int | None = Field(
         None, description="Progress percentage (0-100)", ge=0, le=100
     )
-    message: Optional[str] = Field(None, description="Status message")
-    result: Optional[Dict[str, Any]] = Field(None, description="Job result when completed")
-    error: Optional[str] = Field(None, description="Error message if failed")
+    message: str | None = Field(None, description="Status message")
+    result: dict[str, Any] | None = Field(None, description="Job result when completed")
+    error: str | None = Field(None, description="Error message if failed")

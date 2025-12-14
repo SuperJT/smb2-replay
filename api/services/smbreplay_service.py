@@ -8,13 +8,14 @@ import logging
 import os
 import sys
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Add the smbreplay package to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "smbreplay_package"))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(__file__), "..", "..", "smbreplay_package")
+)
 
 from smbreplay.main import SMB2ReplaySystem
-from smbreplay.config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 class SMBReplayServiceError(Exception):
     """Base exception for SMBReplayService errors."""
 
-    def __init__(self, message: str, code: Optional[str] = None):
+    def __init__(self, message: str, code: str | None = None):
         self.message = message
         self.code = code
         super().__init__(message)
@@ -33,7 +34,7 @@ class SMBReplayService:
 
     def __init__(self):
         """Initialize the service."""
-        self._system: Optional[SMB2ReplaySystem] = None
+        self._system: SMB2ReplaySystem | None = None
         self._initialized = False
 
     @property
@@ -53,7 +54,7 @@ class SMBReplayService:
     # Health & Info
     # =========================================================================
 
-    def health_check(self) -> Dict[str, Any]:
+    def health_check(self) -> dict[str, Any]:
         """Perform a health check.
 
         Returns:
@@ -74,7 +75,7 @@ class SMBReplayService:
                 "tshark_available": False,
             }
 
-    def get_system_info(self) -> Dict[str, Any]:
+    def get_system_info(self) -> dict[str, Any]:
         """Get detailed system information.
 
         Returns:
@@ -96,7 +97,7 @@ class SMBReplayService:
     # Configuration
     # =========================================================================
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self) -> dict[str, Any]:
         """Get current configuration.
 
         Returns:
@@ -121,7 +122,7 @@ class SMBReplayService:
             "max_wait": config.get_max_wait(),
         }
 
-    def update_config(self, updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_config(self, updates: dict[str, Any]) -> dict[str, Any]:
         """Update configuration values.
 
         Args:
@@ -172,7 +173,7 @@ class SMBReplayService:
 
         return self.get_config()
 
-    def get_config_value(self, key: str) -> Optional[str]:
+    def get_config_value(self, key: str) -> str | None:
         """Get a single configuration value.
 
         Args:
@@ -202,13 +203,15 @@ class SMBReplayService:
             value = key_map[key]()
             return str(value) if value is not None else None
 
-        raise SMBReplayServiceError(f"Unknown configuration key: {key}", code="INVALID_KEY")
+        raise SMBReplayServiceError(
+            f"Unknown configuration key: {key}", code="INVALID_KEY"
+        )
 
     # =========================================================================
     # Traces
     # =========================================================================
 
-    def list_traces(self, case_id: Optional[str] = None) -> List[Dict[str, str]]:
+    def list_traces(self, case_id: str | None = None) -> list[dict[str, str]]:
         """List available trace files.
 
         Args:
@@ -234,8 +237,8 @@ class SMBReplayService:
         path: str,
         force: bool = False,
         reassembly: bool = False,
-        case_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        case_id: str | None = None,
+    ) -> dict[str, Any]:
         """Ingest a PCAP file synchronously.
 
         Args:
@@ -262,8 +265,8 @@ class SMBReplayService:
         real_traces = os.path.realpath(traces_folder)
         if not real_path.startswith(real_traces + os.sep) and real_path != real_traces:
             raise SMBReplayServiceError(
-                f"Path traversal detected: path must be within traces folder",
-                code="PATH_TRAVERSAL"
+                "Path traversal detected: path must be within traces folder",
+                code="PATH_TRAVERSAL",
             )
 
         result = self.system.ingest_pcap(
@@ -273,13 +276,19 @@ class SMBReplayService:
         if result:
             # sessions is a dict of {session_id: DataFrame}, extract keys as list
             sessions_dict = result.get("sessions", {})
-            session_ids = list(sessions_dict.keys()) if isinstance(sessions_dict, dict) else []
+            session_ids = (
+                list(sessions_dict.keys()) if isinstance(sessions_dict, dict) else []
+            )
+
+            # Extract performance metrics from nested 'performance' dict
+            performance = result.get("performance", {})
+
             return {
                 "success": True,
                 "sessions": session_ids,
                 "session_count": len(session_ids),
-                "total_frames": result.get("total_frames"),
-                "processing_time": result.get("processing_time"),
+                "total_frames": performance.get("packets_processed"),
+                "processing_time": performance.get("processing_time"),
             }
         else:
             return {
@@ -293,7 +302,7 @@ class SMBReplayService:
     # Sessions
     # =========================================================================
 
-    def list_sessions(self, capture_path: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_sessions(self, capture_path: str | None = None) -> list[dict[str, Any]]:
         """List available sessions.
 
         Args:
@@ -316,10 +325,10 @@ class SMBReplayService:
     def get_session_operations(
         self,
         session_id: str,
-        capture_path: Optional[str] = None,
-        file_filter: Optional[str] = None,
-        fields: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+        capture_path: str | None = None,
+        file_filter: str | None = None,
+        fields: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Get operations for a session.
 
         Args:
@@ -360,11 +369,11 @@ class SMBReplayService:
     def validate_replay(
         self,
         session_id: str,
-        capture_path: Optional[str] = None,
-        file_filter: Optional[str] = None,
+        capture_path: str | None = None,
+        file_filter: str | None = None,
         check_fs: bool = True,
         check_ops: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Validate replay readiness.
 
         Args:
@@ -395,12 +404,12 @@ class SMBReplayService:
     def setup_infrastructure(
         self,
         session_id: str,
-        capture_path: Optional[str] = None,
-        file_filter: Optional[str] = None,
+        capture_path: str | None = None,
+        file_filter: str | None = None,
         dry_run: bool = False,
         force: bool = False,
-        server_overrides: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        server_overrides: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Setup file system infrastructure for replay.
 
         Args:
@@ -436,12 +445,12 @@ class SMBReplayService:
     def execute_replay(
         self,
         session_id: str,
-        capture_path: Optional[str] = None,
-        file_filter: Optional[str] = None,
+        capture_path: str | None = None,
+        file_filter: str | None = None,
         validate_first: bool = True,
         enable_ping: bool = True,
-        server_overrides: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        server_overrides: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Execute a replay operation.
 
         Args:
@@ -486,6 +495,7 @@ class SMBReplayService:
         # Configure ping
         try:
             from smbreplay.replay import get_replayer
+
             replayer = get_replayer()
             replayer.set_ping_enabled(enable_ping)
         except Exception as e:
@@ -519,7 +529,9 @@ class SMBReplayService:
         Returns:
             Session ID.
         """
-        if session_file.startswith("smb2_session_") and session_file.endswith(".parquet"):
+        if session_file.startswith("smb2_session_") and session_file.endswith(
+            ".parquet"
+        ):
             return session_file.replace("smb2_session_", "").replace(".parquet", "")
         return session_file
 

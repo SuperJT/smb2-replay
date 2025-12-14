@@ -1,7 +1,5 @@
 """Session management endpoints."""
 
-from typing import Any, Dict, List, Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.models.session import (
@@ -21,7 +19,7 @@ router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 @router.get("", response_model=SessionListResponse)
 def list_sessions(
-    capture_path: Optional[str] = Query(
+    capture_path: str | None = Query(
         None, description="Capture file path to list sessions for"
     ),
     service: SMBReplayService = Depends(get_smbreplay_service),
@@ -42,15 +40,15 @@ def list_sessions(
             total=len(sessions),
         )
     except SMBReplayServiceError as e:
-        raise HTTPException(status_code=400, detail=e.message)
+        raise HTTPException(status_code=400, detail=e.message) from e
 
 
 @router.get("/{session_id}", response_model=OperationsResponse)
 def get_session(
     session_id: str,
-    capture_path: Optional[str] = Query(None, description="Override capture path"),
-    file_filter: Optional[str] = Query(None, description="Filter by file path"),
-    fields: Optional[List[str]] = Query(None, description="Fields to include"),
+    capture_path: str | None = Query(None, description="Override capture path"),
+    file_filter: str | None = Query(None, description="Filter by file path"),
+    fields: list[str] | None = Query(None, description="Fields to include"),
     service: SMBReplayService = Depends(get_smbreplay_service),
 ) -> OperationsResponse:
     """Get session details and operations.
@@ -73,8 +71,8 @@ def get_session(
         return OperationsResponse(**result)
     except SMBReplayServiceError as e:
         if e.code == "SESSION_NOT_FOUND":
-            raise HTTPException(status_code=404, detail=e.message)
-        raise HTTPException(status_code=400, detail=e.message)
+            raise HTTPException(status_code=404, detail=e.message) from e
+        raise HTTPException(status_code=400, detail=e.message) from e
 
 
 @router.post("/{session_id}/operations", response_model=OperationsResponse)
@@ -101,5 +99,5 @@ def get_session_operations(
         return OperationsResponse(**result)
     except SMBReplayServiceError as e:
         if e.code == "SESSION_NOT_FOUND":
-            raise HTTPException(status_code=404, detail=e.message)
-        raise HTTPException(status_code=400, detail=e.message)
+            raise HTTPException(status_code=404, detail=e.message) from e
+        raise HTTPException(status_code=400, detail=e.message) from e

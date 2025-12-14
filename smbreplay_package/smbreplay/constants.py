@@ -4,11 +4,11 @@ Contains all SMB2 protocol constants, field mappings, and utility functions.
 """
 
 import os
-import pandas as pd
 import subprocess
 import uuid
+
+import pandas as pd
 from smbprotocol.header import NtStatus
-from typing import Dict, List
 
 # Configuration constants
 SEP = 4 * " "
@@ -228,7 +228,7 @@ def normalize_path(path: str) -> str:
     return path.strip().replace("/", "\\").lower()
 
 
-def get_tree_name_mapping(frames: pd.DataFrame) -> Dict[str, str]:
+def get_tree_name_mapping(frames: pd.DataFrame) -> dict[str, str]:
     """Map tree IDs to share names based on Tree Connect frames within a session."""
     tree_mapping = {}
     if isinstance(frames, list):
@@ -314,7 +314,7 @@ def normalize_fid(value):
         return None
 
 
-def generate_smb2_fields(force_regenerate: bool = False) -> List[str]:
+def generate_smb2_fields(force_regenerate: bool = False) -> list[str]:
     """Generate SMB2 fields from tshark if needed."""
     smb2_fields_file = "smb2_fields.txt"
 
@@ -325,17 +325,14 @@ def generate_smb2_fields(force_regenerate: bool = False) -> List[str]:
         # Security: Use subprocess without shell=True to prevent command injection
         # Run tshark to get all fields
         tshark_result = subprocess.run(
-            [TSHARK_PATH, "-G", "fields"],
-            capture_output=True,
-            text=True
+            [TSHARK_PATH, "-G", "fields"], capture_output=True, text=True
         )
         if tshark_result.returncode != 0:
             raise RuntimeError(f"tshark -G fields failed: {tshark_result.stderr}")
 
         # Filter for smb2 fields in Python (instead of piping to grep)
         smb2_lines = [
-            line for line in tshark_result.stdout.splitlines()
-            if "smb2" in line.lower()
+            line for line in tshark_result.stdout.splitlines() if "smb2" in line.lower()
         ]
 
         # Write filtered results to file
@@ -344,7 +341,7 @@ def generate_smb2_fields(force_regenerate: bool = False) -> List[str]:
             if smb2_lines:
                 f.write("\n")
 
-    with open(smb2_fields_file, "r") as f:
+    with open(smb2_fields_file) as f:
         smb2_field_lines = f.readlines()
 
     if not smb2_field_lines:
@@ -359,7 +356,7 @@ def generate_smb2_fields(force_regenerate: bool = False) -> List[str]:
     return smb2_fields
 
 
-def get_all_fields() -> List[str]:
+def get_all_fields() -> list[str]:
     """Get all fields for ingestion."""
     smb2_fields = generate_smb2_fields()
     fields = sorted(set(TRACKING_FIELDS + smb2_fields))
@@ -395,7 +392,9 @@ FIELD_MAPPINGS = {
                 )
             )
             if x and pd.notna(x) and isinstance(x, str)
-            else str(int(x)) if x and pd.notna(x) else None
+            else str(int(x))
+            if x and pd.notna(x)
+            else None
         ),
         "description": "Maps SMB2 command codes to operation names.",
     },
@@ -438,7 +437,9 @@ FIELD_MAPPINGS = {
                 )
             )
             if x and pd.notna(x) and isinstance(x, str)
-            else str(int(x)) if x and pd.notna(x) else None
+            else str(int(x))
+            if x and pd.notna(x)
+            else None
         ),
         "description": "Keeps message ID as decimal string for comparison.",
     },

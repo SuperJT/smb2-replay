@@ -4,15 +4,16 @@ Queries file information using smbprotocol Open object.
 """
 
 import logging
+from typing import Any
+
 from smbprotocol.exceptions import SMBException
-from typing import Any, Dict
 
 from ..constants import SMB2_FILE_INFO_CLASSES, SMB2_INFO_LEVELS
 
 logger = logging.getLogger(__name__)
 
 
-def handle_query_info(replayer, op: Dict[str, Any], **kwargs):
+def handle_query_info(replayer, op: dict[str, Any], **kwargs):
     """Handle Query Info operation using smbprotocol Open object.
 
     Args:

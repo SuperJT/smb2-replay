@@ -1,9 +1,9 @@
-import math
-
 import logging
+import math
+from typing import Any
+
 from smbprotocol.exceptions import SMBException
 from smbprotocol.open import Open
-from typing import Any, Dict, List, Optional, Union
 
 from smbreplay.utils import get_share_relative_path
 
@@ -33,15 +33,17 @@ def _safe_int(value: Any, default: int, field_name: str = "field") -> int:
                 return -int(value[1:], 16)
         return int(value)
     except (ValueError, TypeError) as e:
-        logger.warning(f"Invalid {field_name} value '{value}': {e}, using default {default}")
+        logger.warning(
+            f"Invalid {field_name} value '{value}': {e}, using default {default}"
+        )
         return default
 
 
 def handle_create(
     self,
     tree,
-    op: Dict[str, Any],
-    all_operations: Optional[List[Dict[str, Any]]] = None,
+    op: dict[str, Any],
+    all_operations: list[dict[str, Any]] | None = None,
 ):
     """Handle Create operation using smbprotocol.
 

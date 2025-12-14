@@ -1,11 +1,11 @@
-import mimetypes
-
 import json
+import mimetypes
 import os
-import pandas as pd
 import re
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
+
+import pandas as pd
 
 
 def get_share_relative_path(self, filename: str) -> str:
@@ -94,7 +94,7 @@ def safe_json_serialize(obj: Any) -> str:
     try:
         return json.dumps(obj, default=default_handler, indent=2)
     except Exception as e:
-        return f'{{"error": "Failed to serialize: {str(e)}"}}'
+        return f'{{"error": "Failed to serialize: {e!s}"}}'
 
 
 def ensure_directory_exists(path: str) -> bool:
@@ -113,7 +113,7 @@ def ensure_directory_exists(path: str) -> bool:
         return False
 
 
-def get_file_info(file_path: str) -> Dict[str, Any]:
+def get_file_info(file_path: str) -> dict[str, Any]:
     """Get comprehensive file information.
 
     Args:
@@ -172,7 +172,7 @@ def validate_ip_address(ip: str) -> bool:
         return False
 
 
-def validate_port(port: Union[str, int]) -> bool:
+def validate_port(port: str | int) -> bool:
     """Validate port number.
 
     Args:
@@ -229,7 +229,7 @@ def clean_filename(filename: str) -> str:
     return cleaned
 
 
-def parse_smb_timestamp(timestamp_str: str) -> Optional[float]:
+def parse_smb_timestamp(timestamp_str: str) -> float | None:
     """Parse SMB timestamp string to Unix timestamp.
 
     Args:
@@ -282,7 +282,7 @@ def hex_dump(data: bytes, width: int = 16) -> str:
     return "\n".join(lines)
 
 
-def calculate_hash(data: Union[str, bytes], algorithm: str = "sha256") -> str:
+def calculate_hash(data: str | bytes, algorithm: str = "sha256") -> str:
     """Calculate hash of data.
 
     Args:
@@ -307,7 +307,7 @@ def calculate_hash(data: Union[str, bytes], algorithm: str = "sha256") -> str:
         raise ValueError(f"Unsupported hash algorithm: {algorithm}")
 
 
-def merge_dictionaries(*dicts: Dict[str, Any]) -> Dict[str, Any]:
+def merge_dictionaries(*dicts: dict[str, Any]) -> dict[str, Any]:
     """Merge multiple dictionaries, with later ones taking precedence.
 
     Args:
@@ -324,8 +324,8 @@ def merge_dictionaries(*dicts: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def flatten_dict(
-    d: Dict[str, Any], parent_key: str = "", sep: str = "."
-) -> Dict[str, Any]:
+    d: dict[str, Any], parent_key: str = "", sep: str = "."
+) -> dict[str, Any]:
     """Flatten nested dictionary.
 
     Args:
@@ -346,7 +346,7 @@ def flatten_dict(
     return dict(items)
 
 
-def batch_process(items: List[Any], batch_size: int = 1000):
+def batch_process(items: list[Any], batch_size: int = 1000):
     """Process items in batches.
 
     Args:
@@ -387,7 +387,7 @@ def retry_operation(
             if attempt < max_retries:
                 time.sleep(delay * (backoff**attempt))
             else:
-                raise last_exception
+                raise last_exception from None
 
 
 def convert_size_string(size_str: str) -> int:

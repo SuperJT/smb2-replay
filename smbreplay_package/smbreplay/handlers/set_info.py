@@ -4,13 +4,14 @@ Sets file information using smbprotocol Open object.
 """
 
 import logging
+from typing import Any
+
 from smbprotocol.exceptions import SMBException
-from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
 
-def handle_set_info(replayer, op: Dict[str, Any], **kwargs):
+def handle_set_info(replayer, op: dict[str, Any], **kwargs):
     """Handle Set Info operation using smbprotocol Open object.
 
     Args:

@@ -3,17 +3,18 @@ TShark PCAP Processing Module.
 Handles PCAP file processing using tshark for SMB2 protocol analysis.
 """
 
+import contextlib
 import json
 import os
 import select
+import subprocess
+import time
+import traceback
+
 import pandas as pd
 import psutil
 import pyarrow as pa
 import pyarrow.parquet as pq
-import subprocess
-import time
-import traceback
-from typing import List, Optional, Tuple
 
 from .config import get_logger
 from .constants import TSHARK_PATH
@@ -50,7 +51,9 @@ def _sanitize_path_component(component: str) -> str:
     sanitized = sanitized.strip(". \t\n\r")
 
     if not sanitized:
-        raise ValueError(f"Path component '{component}' contains only invalid characters")
+        raise ValueError(
+            f"Path component '{component}' contains only invalid characters"
+        )
 
     return sanitized
 
@@ -131,18 +134,18 @@ def _validate_pcap_file(capture: str) -> None:
                 f"PCAP file too small ({file_size} bytes), may be corrupted: {capture}"
             )
     except OSError as e:
-        raise InvalidPcapError(f"Cannot read PCAP file size: {e}")
+        raise InvalidPcapError(f"Cannot read PCAP file size: {e}") from e
 
 
 def build_tshark_command(
     capture: str,
-    fields: List[str],
+    fields: list[str],
     reassembly: bool = False,
-    packet_limit: Optional[int] = None,
+    packet_limit: int | None = None,
     log_level: str = "debug",
     temp_dir: str = "/tmp",
     verbose: bool = False,
-) -> Tuple[List[str], List[str]]:
+) -> tuple[list[str], list[str]]:
     """Construct local tshark command to process PCAP.
 
     Args:
@@ -285,7 +288,7 @@ def extract_fields(
             "smb2.msg_id",
         ]
         for field in multi_value_fields:
-            if field in field_dict and field_dict[field]:
+            if field_dict.get(field):
                 val = field_dict[field]
                 if isinstance(val, str):
                     if "," in val:
@@ -313,13 +316,13 @@ def extract_fields(
         )
 
     except Exception as e:
-        logger.critical(f"Error in extract_fields: {str(e)}\n{traceback.format_exc()}")
+        logger.critical(f"Error in extract_fields: {e!s}\n{traceback.format_exc()}")
         return 0, -1, "", "", "", {}
 
 
 def process_tshark_output(
-    cmd: List[str],
-    fields: List[str],
+    cmd: list[str],
+    fields: list[str],
     max_records: int = 10_000_000,
     timeout_seconds: int = 3600,
     idle_timeout_seconds: int = 300,
@@ -452,9 +455,7 @@ def process_tshark_output(
         proc.wait()
 
         if proc.returncode != 0:
-            logger.critical(
-                f"tshark failed with exit code {proc.returncode}"
-            )
+            logger.critical(f"tshark failed with exit code {proc.returncode}")
             raise subprocess.CalledProcessError(
                 proc.returncode,
                 cmd,
@@ -503,22 +504,18 @@ def process_tshark_output(
 
     except Exception as e:
         logger.critical(
-            f"Error in process_tshark_output: {str(e)}\n{traceback.format_exc()}"
+            f"Error in process_tshark_output: {e!s}\n{traceback.format_exc()}"
         )
         raise
     finally:
         # Ensure process cleanup even if exception occurs
         if proc is not None:
             if proc.stdout is not None:
-                try:
+                with contextlib.suppress(Exception):
                     proc.stdout.close()
-                except Exception:
-                    pass
             if proc.stderr is not None:
-                try:
+                with contextlib.suppress(Exception):
                     proc.stderr.close()
-                except Exception:
-                    pass
             try:
                 proc.terminate()
                 proc.wait(timeout=5)
@@ -561,7 +558,9 @@ def _optimize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                 lambda x: (
                     x[0]
                     if isinstance(x, list) and x
-                    else x if not isinstance(x, list) else ""
+                    else x
+                    if not isinstance(x, list)
+                    else ""
                 )
             )
             if col == "smb2.tid":
@@ -615,7 +614,9 @@ def save_to_parquet(df: pd.DataFrame, parquet_path: str):
                     lambda x: (
                         ",".join(map(str, x))
                         if isinstance(x, list)
-                        else str(x) if x else ""
+                        else str(x)
+                        if x
+                        else ""
                     )
                 )
 
@@ -625,12 +626,12 @@ def save_to_parquet(df: pd.DataFrame, parquet_path: str):
 
     except Exception as e:
         logger.critical(
-            f"Error saving Parquet file {parquet_path}: {str(e)}\n{traceback.format_exc()}"
+            f"Error saving Parquet file {parquet_path}: {e!s}\n{traceback.format_exc()}"
         )
         raise
 
 
-def get_packet_count(capture_path: str) -> Optional[int]:
+def get_packet_count(capture_path: str) -> int | None:
     """Retrieve the number of packets in a PCAP file using local capinfos.
 
     Args:
@@ -671,9 +672,7 @@ def get_packet_count(capture_path: str) -> Optional[int]:
         logger.critical(f"Error running capinfos: {e.stderr}")
         return None
     except Exception as e:
-        logger.critical(
-            f"Error in get_packet_count: {str(e)}\n{traceback.format_exc()}"
-        )
+        logger.critical(f"Error in get_packet_count: {e!s}\n{traceback.format_exc()}")
         return None
 
 
@@ -710,9 +709,7 @@ def validate_pcap_file(capture_path: str) -> bool:
         logger.critical(f"Error validating PCAP: {e.stderr}")
         return False
     except Exception as e:
-        logger.critical(
-            f"Error in validate_pcap_file: {str(e)}\n{traceback.format_exc()}"
-        )
+        logger.critical(f"Error in validate_pcap_file: {e!s}\n{traceback.format_exc()}")
         return False
 
 
@@ -770,7 +767,7 @@ def create_session_directory(
 
     except Exception as e:
         logger.critical(
-            f"Error in create_session_directory: {str(e)}\n{traceback.format_exc()}"
+            f"Error in create_session_directory: {e!s}\n{traceback.format_exc()}"
         )
         raise
 
@@ -804,6 +801,7 @@ def clear_directory(directory: str, base_dir: str = None):
         else:
             # If no base_dir provided, at minimum validate it's within session output
             from .config import get_session_output_dir
+
             session_output = get_session_output_dir()
             _validate_path_within_base(directory, session_output)
 
@@ -830,5 +828,5 @@ def clear_directory(directory: str, base_dir: str = None):
         logger.info(f"Cleared all files in {directory}")
 
     except Exception as e:
-        logger.critical(f"Error in clear_directory: {str(e)}\n{traceback.format_exc()}")
+        logger.critical(f"Error in clear_directory: {e!s}\n{traceback.format_exc()}")
         raise

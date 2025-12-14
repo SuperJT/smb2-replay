@@ -1,6 +1,8 @@
 import os
-import pytest
+
 import pandas as pd
+import pytest
+
 from smbreplay import ingestion
 
 # Test configuration
@@ -8,6 +10,7 @@ CASE_NUMBER = "2009420420"
 TRACE_NAME = "scoa_replay_freshvol"
 TRACES_FOLDER = os.environ.get("TRACES_FOLDER", os.path.expanduser("~/cases"))
 CAPTURE_PATH = os.path.join(TRACES_FOLDER, CASE_NUMBER, f"{TRACE_NAME}.pcapng")
+
 
 def test_run_ingestion_and_load():
     # Skip test if the specific test file doesn't exist
@@ -19,7 +22,7 @@ def test_run_ingestion_and_load():
         capture_path=CAPTURE_PATH,
         reassembly_enabled=False,
         force_reingest=True,
-        verbose=True
+        verbose=True,
     )
     assert result is not None, "Ingestion failed, result is None"
     assert "full_df" in result and isinstance(result["full_df"], pd.DataFrame)
@@ -32,7 +35,6 @@ def test_run_ingestion_and_load():
     print(result["full_df"][result["full_df"]["frame.number"] == 32])
     print("\n--- Frame 44 after ingestion ---")
     print(result["full_df"][result["full_df"]["frame.number"] == 44])
-
 
     # Save and reload
     loaded = ingestion.load_ingested_data(CASE_NUMBER, TRACE_NAME)

@@ -7,18 +7,22 @@ for basic usage but are useful for development, debugging, and advanced analysis
 """
 
 import os
-import sys
-import subprocess
 import shutil
+import subprocess
+import sys
 from pathlib import Path
+
 
 def check_python_version():
     """Check if Python version is compatible."""
     if sys.version_info < (3, 12):
-        print(f"❌ Python 3.12 or higher is required")
-        print(f"   Current version: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
+        print("❌ Python 3.12 or higher is required")
+        print(
+            f"   Current version: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        )
         sys.exit(1)
     print(f"✅ Python {sys.version_info.major}.{sys.version_info.minor} detected")
+
 
 def check_package_manager():
     """Check if UV or pip is available."""
@@ -32,11 +36,14 @@ def check_package_manager():
         return "uv"
     elif has_pip:
         print("✅ pip is available")
-        print("   💡 For better performance, install UV: curl -LsSf https://astral.sh/uv/install.sh | sh")
+        print(
+            "   💡 For better performance, install UV: curl -LsSf https://astral.sh/uv/install.sh | sh"
+        )
         return "pip"
     else:
         print("❌ Neither UV nor pip is available")
         sys.exit(1)
+
 
 def install_dev_tools():
     """Install development tools."""
@@ -56,7 +63,7 @@ def install_dev_tools():
             cmd = [sys.executable, "-m", "pip", "install", "-e", ".[dev-tools]"]
 
         print(f"Running: {' '.join(cmd)}")
-        result = subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
+        subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
 
         print("✅ Development tools installed successfully!")
         return True
@@ -67,6 +74,7 @@ def install_dev_tools():
             print(f"Error output: {e.stderr}")
         return False
 
+
 def copy_utils_directory():
     """Copy utils directory to the installed package."""
     print("\n📁 Copying development utilities...")
@@ -74,6 +82,7 @@ def copy_utils_directory():
     # Get the package directory
     try:
         import smbreplay
+
         package_dir = Path(smbreplay.__file__).parent
         utils_dest = package_dir / "utils"
 
@@ -92,6 +101,7 @@ def copy_utils_directory():
     except ImportError:
         print("❌ Could not import smbreplay package")
         return False
+
 
 def create_dev_scripts():
     """Create convenient scripts for development tools."""
@@ -139,6 +149,7 @@ if __name__ == "__main__":
     print(f"✅ Development scripts created in: {scripts_dir}")
     return True
 
+
 def main():
     """Main installation function."""
     print("🚀 SMB2 Replay Development Tools Installer")
@@ -174,6 +185,7 @@ def main():
     print("  python scripts/cleanup_test_files.py")
     print("  python utils/tests/test_smb_connectivity.py")
     print("  python utils/cleanup/cleanup_test_files.py")
+
 
 if __name__ == "__main__":
     main()

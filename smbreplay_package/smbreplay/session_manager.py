@@ -5,13 +5,15 @@ Optimized for performance and memory efficiency.
 """
 
 import asyncio
+import contextlib
 import gc
 import os
-import pandas as pd
-import pyarrow.parquet as pq
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+import pandas as pd
+import pyarrow.parquet as pq
 
 from .config import get_config, get_logger
 from .constants import (
@@ -36,7 +38,7 @@ class SessionManager:
         self.execution_id = str(uuid.uuid4())
         self._tree_cache = {}  # Cache for tree mappings
 
-    def load_capture_path(self) -> Optional[str]:
+    def load_capture_path(self) -> str | None:
         """Load capture path from config or environment."""
         logger.info("Loading capture path from configuration")
 
@@ -50,7 +52,7 @@ class SessionManager:
         logger.warning("No valid capture path found in configuration")
         return None
 
-    def get_output_directory(self, capture_path: str) -> Optional[str]:
+    def get_output_directory(self, capture_path: str) -> str | None:
         """Derive output directory from capture path.
 
         Args:
@@ -102,7 +104,7 @@ class SessionManager:
 
     async def _list_sessions_from_database(
         self, case_number: str, trace_name: str
-    ) -> List[str]:
+    ) -> list[str]:
         """List sessions from PostgreSQL database.
 
         Args:
@@ -140,7 +142,7 @@ class SessionManager:
             logger.debug(f"Error listing sessions from database: {e}")
             return []
 
-    def list_session_files(self, output_dir: str) -> List[str]:
+    def list_session_files(self, output_dir: str) -> list[str]:
         """List session files from database or Parquet files.
 
         In database mode (USE_DATABASE=true): Queries PostgreSQL only
@@ -211,7 +213,7 @@ class SessionManager:
 
     async def _load_session_from_database(
         self, case_number: str, trace_name: str, session_id: str
-    ) -> Optional[pd.DataFrame]:
+    ) -> pd.DataFrame | None:
         """Load session frames from PostgreSQL database.
 
         Args:
@@ -441,8 +443,8 @@ class SessionManager:
         return self.session_frames, field_options, file_options, selected_fields
 
     def get_operations_vectorized(
-        self, selected_fields: Optional[List[str]] = None, limit: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        self, selected_fields: list[str] | None = None, limit: int | None = None
+    ) -> list[dict[str, Any]]:
         """Extract operations from session frames using vectorized operations.
 
         Args:
@@ -485,7 +487,7 @@ class SessionManager:
 
         return operations
 
-    def _get_cached_tree_mapping(self, frames: pd.DataFrame) -> Dict[str, str]:
+    def _get_cached_tree_mapping(self, frames: pd.DataFrame) -> dict[str, str]:
         """Get tree mapping with caching for better performance.
 
         Args:
@@ -582,9 +584,9 @@ class SessionManager:
     def _extract_operations_vectorized(
         self,
         frames: pd.DataFrame,
-        tree_mapping: Dict[str, str],
-        selected_fields: Optional[List[str]] = None,
-    ) -> List[Dict[str, Any]]:
+        tree_mapping: dict[str, str],
+        selected_fields: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         """Extract operations using vectorized operations.
 
         Args:
@@ -679,9 +681,9 @@ class SessionManager:
         self,
         capture_path: str,
         session_file: str,
-        selected_file: Optional[str] = None,
-        selected_fields: Optional[List[str]] = None,
-    ) -> List[Dict[str, Any]]:
+        selected_file: str | None = None,
+        selected_fields: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         """Prepare operations data based on selected file and fields.
 
         Args:
@@ -810,8 +812,8 @@ class SessionManager:
         return self.operations
 
     def _process_frames_to_operations(
-        self, frames: pd.DataFrame, selected_fields: List[str]
-    ) -> List[Dict[str, Any]]:
+        self, frames: pd.DataFrame, selected_fields: list[str]
+    ) -> list[dict[str, Any]]:
         """Process DataFrame frames into operation dictionaries.
 
         Args:
@@ -954,12 +956,12 @@ class SessionManager:
 
     # Maintain backward compatibility while using optimized functions
     def get_operations(
-        self, selected_fields: Optional[List[str]] = None, limit: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        self, selected_fields: list[str] | None = None, limit: int | None = None
+    ) -> list[dict[str, Any]]:
         """Get operations using optimized vectorized processing."""
         return self.get_operations_vectorized(selected_fields, limit)
 
-    def get_session_frames(self) -> Optional[pd.DataFrame]:
+    def get_session_frames(self) -> pd.DataFrame | None:
         """Get current session frames."""
         return self.session_frames.copy() if self.session_frames is not None else None
 
@@ -977,7 +979,7 @@ class SessionManager:
         """Get unique execution ID."""
         return self.execution_id
 
-    def get_session_summary(self) -> Dict[str, Any]:
+    def get_session_summary(self) -> dict[str, Any]:
         """Get session summary with performance metrics.
 
         Returns:
@@ -1004,10 +1006,8 @@ class SessionManager:
                         # Try to convert each element, handling various formats
                         cmd_ints = []
                         for c in cmd_str:
-                            try:
+                            with contextlib.suppress(ValueError, TypeError):
                                 cmd_ints.append(int(c))
-                            except (ValueError, TypeError):
-                                pass
                     else:
                         # Try direct int conversion instead of isdigit() check
                         # isdigit() fails for "-1", "0x10", "1.0" which int() can handle
@@ -1063,7 +1063,7 @@ class SessionManager:
 
 
 # Global session manager instance
-_session_manager: Optional[SessionManager] = None
+_session_manager: SessionManager | None = None
 
 
 def get_session_manager() -> SessionManager:
@@ -1075,17 +1075,17 @@ def get_session_manager() -> SessionManager:
 
 
 # Convenience functions for backward compatibility
-def load_capture() -> Optional[str]:
+def load_capture() -> str | None:
     """Load capture from configuration."""
     return get_session_manager().load_capture_path()
 
 
-def get_output_dir(capture_path: str) -> Optional[str]:
+def get_output_dir(capture_path: str) -> str | None:
     """Get output directory for capture."""
     return get_session_manager().get_output_directory(capture_path)
 
 
-def list_session_files(output_dir: str) -> List[str]:
+def list_session_files(output_dir: str) -> list[str]:
     """List session files in directory."""
     return get_session_manager().list_session_files(output_dir)
 
@@ -1098,20 +1098,20 @@ def load_and_summarize_session(capture_path: str, session_file: str) -> tuple:
 def update_operations(
     capture_path: str,
     session_file: str,
-    selected_file: Optional[str] = None,
-    selected_fields: Optional[List[str]] = None,
-) -> List[Dict[str, Any]]:
+    selected_file: str | None = None,
+    selected_fields: list[str] | None = None,
+) -> list[dict[str, Any]]:
     """Update operations for session."""
     return get_session_manager().update_operations(
         capture_path, session_file, selected_file, selected_fields
     )
 
 
-def get_operations() -> List[Dict[str, Any]]:
+def get_operations() -> list[dict[str, Any]]:
     """Get current operations."""
     return get_session_manager().get_operations()
 
 
-def get_session_frames() -> Optional[pd.DataFrame]:
+def get_session_frames() -> pd.DataFrame | None:
     """Get current session frames."""
     return get_session_manager().get_session_frames()

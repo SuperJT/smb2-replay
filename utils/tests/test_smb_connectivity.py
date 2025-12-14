@@ -3,36 +3,34 @@
 Test SMB server connectivity and basic operations using smbprotocol.
 """
 
-import sys
-import os
+import logging
 import socket
+import sys
 import uuid
-import pytest
-from typing import Optional
 
+import pytest
 from smbprotocol.connection import Connection
+from smbprotocol.open import (
+    CreateDisposition,
+    CreateOptions,
+    FileAttributes,
+    FileInformationClass,
+    FilePipePrinterAccessMask,
+    ImpersonationLevel,
+    Open,
+    ShareAccess,
+)
 from smbprotocol.session import Session
 from smbprotocol.tree import TreeConnect
 
-from smbprotocol.open import (
-    Open, 
-    ImpersonationLevel, 
-    FilePipePrinterAccessMask, 
-    FileAttributes, 
-    ShareAccess, 
-    CreateDisposition, 
-    CreateOptions, 
-    FileInformationClass
-)
-from smbprotocol.file_info import FileDispositionInformation
-
-
-import logging
 logging.basicConfig(level=logging.INFO)
 
 from smbreplay.config import get_config
 
-def test_basic_connectivity(server_ip: str = "127.0.0.1", port: int = 445, timeout: int = 5):
+
+def test_basic_connectivity(
+    server_ip: str = "127.0.0.1", port: int = 445, timeout: int = 5
+):
     """Test basic TCP connectivity to SMB port."""
     print(f"Testing basic connectivity to {server_ip}:{port}...")
     try:
@@ -44,7 +42,10 @@ def test_basic_connectivity(server_ip: str = "127.0.0.1", port: int = 445, timeo
         print(f"✗ Port 445 connection failed: {e}")
         return False
 
-def test_smb_login(server_ip: str = "127.0.0.1", username: str = "test", password: str = "test") -> Optional[tuple[Connection, Session]]:
+
+def test_smb_login(
+    server_ip: str = "127.0.0.1", username: str = "test", password: str = "test"
+) -> tuple[Connection, Session] | None:
     """Test SMB login and return (Connection, Session) if successful."""
     print(f"Testing SMB login to {server_ip}...")
     print(f"  [DEBUG] Username: {username}")
@@ -58,15 +59,19 @@ def test_smb_login(server_ip: str = "127.0.0.1", username: str = "test", passwor
         return conn, session
     except Exception as e:
         import traceback
+
         print(f"✗ SMB login failed: {e}")
         traceback.print_exc()
         return None
 
-def test_tree_connect(session: Session = None, server_ip: str = "127.0.0.1", share_name: str = "testshare") -> Optional[TreeConnect]:
+
+def test_tree_connect(
+    session: Session = None, server_ip: str = "127.0.0.1", share_name: str = "testshare"
+) -> TreeConnect | None:
     """Test tree connection and return TreeConnect if successful."""
     if session is None:
         pytest.skip("Session not available for tree connect test")
-    
+
     # Use share_name from config if not provided
     if not share_name:
         config = get_config()
@@ -79,17 +84,18 @@ def test_tree_connect(session: Session = None, server_ip: str = "127.0.0.1", sha
         tree = TreeConnect(session, share_path)
         print(f"  [DEBUG] TreeConnect object created: {tree}")
         tree.connect()
-        print(f"✓ Tree connect successful")
+        print("✓ Tree connect successful")
         return tree
     except Exception as e:
         print(f"✗ Tree connect failed: {e}")
         return None
 
+
 def test_directory_listing(tree: TreeConnect = None, path: str = "") -> bool:
     """Test directory listing."""
     if tree is None:
         pytest.skip("Tree not available for directory listing test")
-    
+
     print(f"Testing directory listing for path '{path or '.'}'...")
     try:
         handle = Open(tree, path or "")
@@ -99,10 +105,12 @@ def test_directory_listing(tree: TreeConnect = None, path: str = "") -> bool:
             FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
             ShareAccess.FILE_SHARE_READ | ShareAccess.FILE_SHARE_WRITE,
             CreateDisposition.FILE_OPEN,
-            CreateOptions.FILE_DIRECTORY_FILE
+            CreateOptions.FILE_DIRECTORY_FILE,
         )
-        entries = handle.query_directory("*", FileInformationClass.FILE_NAMES_INFORMATION)
-        names = [e['file_name'].get_value().decode('utf-16-le') for e in entries]
+        entries = handle.query_directory(
+            "*", FileInformationClass.FILE_NAMES_INFORMATION
+        )
+        names = [e["file_name"].get_value().decode("utf-16-le") for e in entries]
         print(f"✓ Directory listing successful, found {len(names)} items")
         for i, name in enumerate(names[:5]):
             print(f"  {name}")
@@ -114,11 +122,14 @@ def test_directory_listing(tree: TreeConnect = None, path: str = "") -> bool:
         print(f"✗ Directory listing failed: {e}")
         return False
 
-def test_file_operations(tree: TreeConnect = None, test_filename: str = 'smb2_replay_test.txt') -> bool:
+
+def test_file_operations(
+    tree: TreeConnect = None, test_filename: str = "smb2_replay_test.txt"
+) -> bool:
     """Test basic file operations."""
     if tree is None:
         pytest.skip("Tree not available for file operations test")
-    
+
     print(f"Testing file operations with '{test_filename}'...")
     try:
         # Create file
@@ -127,16 +138,17 @@ def test_file_operations(tree: TreeConnect = None, test_filename: str = 'smb2_re
         try:
             handle.create(
                 ImpersonationLevel.Impersonation,
-                FilePipePrinterAccessMask.GENERIC_READ | FilePipePrinterAccessMask.GENERIC_WRITE,
+                FilePipePrinterAccessMask.GENERIC_READ
+                | FilePipePrinterAccessMask.GENERIC_WRITE,
                 FileAttributes.FILE_ATTRIBUTE_NORMAL,
                 ShareAccess.FILE_SHARE_READ | ShareAccess.FILE_SHARE_WRITE,
                 CreateDisposition.FILE_OVERWRITE_IF,
-                CreateOptions.FILE_NON_DIRECTORY_FILE
+                CreateOptions.FILE_NON_DIRECTORY_FILE,
             )
-            print(f"  ✓ File create successful")
+            print("  ✓ File create successful")
         finally:
             handle.close()
-            print(f"  ✓ File close successful")
+            print("  ✓ File close successful")
 
         # Delete file
         print(f"  Deleting test file: {test_filename}")
@@ -148,15 +160,17 @@ def test_file_operations(tree: TreeConnect = None, test_filename: str = 'smb2_re
                 FileAttributes.FILE_ATTRIBUTE_NORMAL,
                 ShareAccess.FILE_SHARE_READ | ShareAccess.FILE_SHARE_WRITE,
                 CreateDisposition.FILE_OPEN,
-                CreateOptions.FILE_NON_DIRECTORY_FILE | CreateOptions.FILE_DELETE_ON_CLOSE
+                CreateOptions.FILE_NON_DIRECTORY_FILE
+                | CreateOptions.FILE_DELETE_ON_CLOSE,
             )
         finally:
             handle.close()
-            print(f"  ✓ File delete successful")
+            print("  ✓ File delete successful")
         return True
     except Exception as e:
         print(f"✗ File operations failed: {e}")
         return False
+
 
 def main():
     """Main test function."""
@@ -180,9 +194,7 @@ def main():
         return False
     # Test 2: SMB login
     login_result = test_smb_login(
-        config.get_server_ip(),
-        config.get_username(),
-        config.get_password()
+        config.get_server_ip(), config.get_username(), config.get_password()
     )
     if not login_result:
         print("\n✗ SMB login test failed. Check credentials and domain.")
@@ -191,7 +203,9 @@ def main():
     # Test 3: Tree connect
     tree = test_tree_connect(session, config.get_server_ip(), config.get_tree_name())
     if not tree:
-        print(f"\n✗ Tree connect test failed. Check if share '{config.get_tree_name()}' exists.")
+        print(
+            f"\n✗ Tree connect test failed. Check if share '{config.get_tree_name()}' exists."
+        )
         conn.disconnect()
         session.disconnect()
         return False
@@ -224,6 +238,7 @@ def main():
         print("The SMB server may have limited functionality.")
     print("=" * 60)
     return True
+
 
 if __name__ == "__main__":
     try:

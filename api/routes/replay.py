@@ -46,8 +46,8 @@ def validate_replay(
         return ValidationResult(**result)
     except SMBReplayServiceError as e:
         if e.code == "SESSION_NOT_FOUND":
-            raise HTTPException(status_code=404, detail=e.message)
-        raise HTTPException(status_code=400, detail=e.message)
+            raise HTTPException(status_code=404, detail=e.message) from e
+        raise HTTPException(status_code=400, detail=e.message) from e
 
 
 @router.post("/setup", response_model=SetupResult)
@@ -91,8 +91,8 @@ def setup_infrastructure(
         return SetupResult(**result)
     except SMBReplayServiceError as e:
         if e.code == "SESSION_NOT_FOUND":
-            raise HTTPException(status_code=404, detail=e.message)
-        raise HTTPException(status_code=400, detail=e.message)
+            raise HTTPException(status_code=404, detail=e.message) from e
+        raise HTTPException(status_code=400, detail=e.message) from e
 
 
 @router.post("/execute", response_model=ReplayResult)
@@ -136,5 +136,5 @@ def execute_replay(
         return ReplayResult(**result)
     except SMBReplayServiceError as e:
         if e.code == "SESSION_NOT_FOUND":
-            raise HTTPException(status_code=404, detail=e.message)
-        raise HTTPException(status_code=400, detail=e.message)
+            raise HTTPException(status_code=404, detail=e.message) from e
+        raise HTTPException(status_code=400, detail=e.message) from e

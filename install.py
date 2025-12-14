@@ -5,17 +5,17 @@ SMB2 Replay Installation Helper
 This script helps you choose the right installation type for your needs.
 """
 
-import os
-import sys
-import subprocess
 import shutil
-from pathlib import Path
+import subprocess
+import sys
+
 
 def print_banner():
     """Print installation banner."""
     print("🚀 SMB2 Replay System Installation")
     print("=" * 40)
     print()
+
 
 def check_requirements():
     """Check if basic requirements are met."""
@@ -24,7 +24,9 @@ def check_requirements():
     # Check Python version
     if sys.version_info < (3, 12):
         print("❌ Python 3.12 or higher is required")
-        print(f"   Current version: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
+        print(
+            f"   Current version: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        )
         return False
 
     # Check for UV (preferred) or pip (fallback)
@@ -43,15 +45,20 @@ def check_requirements():
         return False
 
     # Check virtual environment
-    if not hasattr(sys, 'real_prefix') and not (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+    if not hasattr(sys, "real_prefix") and not (
+        hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
+    ):
         print("⚠️  Not running in a virtual environment (recommended)")
         if has_uv:
             print("   Create one with: uv venv && source .venv/bin/activate")
         else:
-            print("   Create one with: python3 -m venv venv && source venv/bin/activate")
+            print(
+                "   Create one with: python3 -m venv venv && source venv/bin/activate"
+            )
 
     print("✅ Basic requirements met")
     return True
+
 
 def get_installation_type():
     """Get user's installation preference."""
@@ -76,7 +83,7 @@ def get_installation_type():
     while True:
         try:
             choice = input("Enter your choice (1-3): ").strip()
-            if choice in ['1', '2', '3']:
+            if choice in ["1", "2", "3"]:
                 return choice
             else:
                 print("Please enter 1, 2, or 3")
@@ -84,9 +91,10 @@ def get_installation_type():
             print("\n\nInstallation cancelled")
             sys.exit(0)
 
+
 def install_package(install_type):
     """Install the package based on type."""
-    print(f"\n🔧 Installing SMB2 Replay...")
+    print("\n🔧 Installing SMB2 Replay...")
 
     # Prefer UV if available
     use_uv = shutil.which("uv") is not None
@@ -118,7 +126,7 @@ def install_package(install_type):
         print(f"✅ {description} completed successfully!")
         if result.stdout:
             # Show abbreviated output for UV (it's quite verbose)
-            lines = result.stdout.strip().split('\n')
+            lines = result.stdout.strip().split("\n")
             if use_uv and len(lines) > 5:
                 print(f"   Installed {len(lines)} packages")
             else:
@@ -130,25 +138,39 @@ def install_package(install_type):
             print(f"Error output: {e.stderr}")
         return False
 
+
 def test_installation():
     """Test the installation."""
     print("\n🧪 Testing installation...")
 
     try:
         # Test basic functionality
-        result = subprocess.run([sys.executable, "-c", "import smbreplay; print('✅ smbreplay package imported successfully')"],
-                              check=True, capture_output=True, text=True)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import smbreplay; print('✅ smbreplay package imported successfully')",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         print(result.stdout.strip())
 
         # Test CLI
-        result = subprocess.run([sys.executable, "-m", "smbreplay", "--help"],
-                              check=True, capture_output=True, text=True)
+        result = subprocess.run(
+            [sys.executable, "-m", "smbreplay", "--help"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         print("✅ CLI interface working")
 
         return True
     except subprocess.CalledProcessError as e:
         print(f"❌ Installation test failed: {e}")
         return False
+
 
 def show_next_steps(install_type):
     """Show next steps based on installation type."""
@@ -196,6 +218,7 @@ def show_next_steps(install_type):
     print("   - INSTALLATION.md - Detailed installation instructions")
     print("   - docs/UV_MIGRATION.md - UV migration guide")
 
+
 def main():
     """Main installation function."""
     print_banner()
@@ -218,6 +241,7 @@ def main():
 
     # Show next steps
     show_next_steps(install_type)
+
 
 if __name__ == "__main__":
     main()

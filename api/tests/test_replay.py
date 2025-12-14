@@ -1,6 +1,5 @@
 """Tests for replay operation endpoints."""
 
-import pytest
 from fastapi.testclient import TestClient
 
 
