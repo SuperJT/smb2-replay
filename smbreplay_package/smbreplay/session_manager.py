@@ -622,6 +622,29 @@ class SessionManager:
                             return result
                         return "UNKNOWN"
 
+                    # Handle string representations of lists/sets: "['5', '15']" or "{'5'}"
+                    x_str = str(x).strip()
+                    if x_str.startswith(("[", "{")):
+                        # Parse string-encoded collection: extract first number
+                        # Clean brackets and quotes, split by comma, take first
+                        cleaned = (
+                            x_str.replace("[", "")
+                            .replace("]", "")
+                            .replace("{", "")
+                            .replace("}", "")
+                            .replace("'", "")
+                            .replace('"', "")
+                        )
+                        first_cmd = cleaned.split(",")[0].strip()
+                        if first_cmd:
+                            normalized = str(int(first_cmd))
+                            result = cmd_mapping.get(normalized, f"UNKNOWN({first_cmd})")
+                            logger.debug(
+                                f"Command translation (string-list): {x} -> {normalized} -> {result}"
+                            )
+                            return result
+                        return "UNKNOWN"
+
                     # Original string handling via normalize lambda
                     normalized = normalize_cmd(x)
                     result = cmd_mapping.get(normalized, f"UNKNOWN({x})")
@@ -875,26 +898,40 @@ class SessionManager:
                         else:
                             op_name = "UNKNOWN"
                     else:
-                        # Clean the command string first
-                        cmd_cleaned = (
-                            str(cmd)
-                            .split(",")[0]
-                            .strip()
-                            .replace("{", "")
-                            .replace("}", "")
-                            .replace("[", "")
-                            .replace("]", "")
-                            .replace("'", "")
-                        )
-                        # Parse as integer directly, avoiding masked float conversion
-                        # Handle hex strings (0x...) and decimal strings
-                        if cmd_cleaned.startswith("0x"):
-                            cmd_int = int(cmd_cleaned, 16)
-                        elif "." in cmd_cleaned:
-                            # Only use float conversion if there's a decimal point
-                            cmd_int = int(float(cmd_cleaned))
+                        # Handle string representations of lists/sets first
+                        cmd_str = str(cmd).strip()
+                        if cmd_str.startswith(("[", "{")):
+                            # String-encoded collection: "['5', '15']" or "{'5'}"
+                            cmd_cleaned = (
+                                cmd_str.replace("[", "")
+                                .replace("]", "")
+                                .replace("{", "")
+                                .replace("}", "")
+                                .replace("'", "")
+                                .replace('"', "")
+                            )
+                            first_cmd = cmd_cleaned.split(",")[0].strip()
+                            cmd_int = int(first_cmd) if first_cmd else -1
                         else:
-                            cmd_int = int(cmd_cleaned)
+                            # Regular string: clean and parse
+                            cmd_cleaned = (
+                                cmd_str.split(",")[0]
+                                .strip()
+                                .replace("{", "")
+                                .replace("}", "")
+                                .replace("[", "")
+                                .replace("]", "")
+                                .replace("'", "")
+                            )
+                            # Parse as integer directly, avoiding masked float conversion
+                            # Handle hex strings (0x...) and decimal strings
+                            if cmd_cleaned.startswith("0x"):
+                                cmd_int = int(cmd_cleaned, 16)
+                            elif "." in cmd_cleaned:
+                                # Only use float conversion if there's a decimal point
+                                cmd_int = int(float(cmd_cleaned))
+                            else:
+                                cmd_int = int(cmd_cleaned)
                         op_name = SMB2_OP_NAME_DESC.get(
                             cmd_int, (f"UNKNOWN({cmd})", "")
                         )[0]
