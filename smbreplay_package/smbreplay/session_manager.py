@@ -621,12 +621,18 @@ class SessionManager:
                 # Use pd.api.types.is_list_like which handles all array-like types
                 if pd.api.types.is_list_like(x) and not isinstance(x, str):
                     if len(x) > 0:
-                        # Take first command from collection and translate it
-                        first_cmd = list(x)[0]  # Convert to list for consistent access
-                        normalized = str(int(str(first_cmd).strip()))
-                        result = cmd_mapping.get(normalized, f"UNKNOWN({first_cmd})")
+                        # Translate ALL commands and join with comma
+                        names = []
+                        for cmd in list(x):
+                            try:
+                                normalized = str(int(str(cmd).strip()))
+                                name = cmd_mapping.get(normalized, f"UNKNOWN({cmd})")
+                                names.append(name)
+                            except (ValueError, TypeError):
+                                names.append(f"UNKNOWN({cmd})")
+                        result = ", ".join(names)
                         logger.debug(
-                            f"Command translation (collection): {x} -> {normalized} -> {result}"
+                            f"Command translation (collection): {x} -> {result}"
                         )
                         return result
                     return "UNKNOWN"
@@ -634,7 +640,7 @@ class SessionManager:
                 # Handle string representations of lists/sets: "['5', '15']" or "['5' '15']"
                 x_str = str(x).strip()
                 if x_str.startswith(("[", "{")):
-                    # Parse string-encoded collection: extract first number
+                    # Parse string-encoded collection: extract all numbers
                     # Clean brackets and quotes, split by comma or space (numpy uses spaces)
                     cleaned = (
                         x_str.replace("[", "")
@@ -646,14 +652,24 @@ class SessionManager:
                     )
                     # Split by comma first, then by space (numpy arrays use spaces)
                     parts = cleaned.split(",") if "," in cleaned else cleaned.split()
-                    first_cmd = parts[0].strip() if parts else ""
-                    if first_cmd:
-                        normalized = str(int(first_cmd))
-                        result = cmd_mapping.get(normalized, f"UNKNOWN({first_cmd})")
-                        logger.debug(
-                            f"Command translation (string-list): {x} -> {normalized} -> {result}"
-                        )
-                        return result
+                    if parts:
+                        # Translate ALL commands and join with comma
+                        names = []
+                        for part in parts:
+                            cmd = part.strip()
+                            if cmd:
+                                try:
+                                    normalized = str(int(cmd))
+                                    name = cmd_mapping.get(normalized, f"UNKNOWN({cmd})")
+                                    names.append(name)
+                                except (ValueError, TypeError):
+                                    names.append(f"UNKNOWN({cmd})")
+                        if names:
+                            result = ", ".join(names)
+                            logger.debug(
+                                f"Command translation (string-list): {x} -> {result}"
+                            )
+                            return result
                     return "UNKNOWN"
 
                 # Original string handling via normalize lambda
@@ -906,11 +922,18 @@ class SessionManager:
                 # Handle collection types: list, set, tuple, or numpy array
                 elif pd.api.types.is_list_like(cmd) and not isinstance(cmd, str):
                     if len(cmd) > 0:
-                        first_cmd = list(cmd)[0]  # Convert for consistent access
-                        cmd_int = int(str(first_cmd).strip())
-                        op_name = SMB2_OP_NAME_DESC.get(
-                            cmd_int, (f"UNKNOWN({first_cmd})", "")
-                        )[0]
+                        # Translate ALL commands and join with comma
+                        names = []
+                        for c in list(cmd):
+                            try:
+                                cmd_int = int(str(c).strip())
+                                name = SMB2_OP_NAME_DESC.get(
+                                    cmd_int, (f"UNKNOWN({c})", "")
+                                )[0]
+                                names.append(name)
+                            except (ValueError, TypeError):
+                                names.append(f"UNKNOWN({c})")
+                        op_name = ", ".join(names)
                 else:
                     # Handle string representations of lists/sets first
                     cmd_str = str(cmd).strip()
@@ -930,8 +953,20 @@ class SessionManager:
                             if "," in cmd_cleaned
                             else cmd_cleaned.split()
                         )
-                        first_cmd = parts[0].strip() if parts else ""
-                        cmd_int = int(first_cmd) if first_cmd else -1
+                        # Translate ALL commands and join with comma
+                        names = []
+                        for part in parts:
+                            c = part.strip()
+                            if c:
+                                try:
+                                    cmd_int = int(c)
+                                    name = SMB2_OP_NAME_DESC.get(
+                                        cmd_int, (f"UNKNOWN({c})", "")
+                                    )[0]
+                                    names.append(name)
+                                except (ValueError, TypeError):
+                                    names.append(f"UNKNOWN({c})")
+                        op_name = ", ".join(names) if names else "UNKNOWN"
                     else:
                         # Regular string: clean and parse
                         cmd_cleaned = (
@@ -952,9 +987,9 @@ class SessionManager:
                             cmd_int = int(float(cmd_cleaned))
                         else:
                             cmd_int = int(cmd_cleaned)
-                    op_name = SMB2_OP_NAME_DESC.get(
-                        cmd_int, (f"UNKNOWN({cmd})", "")
-                    )[0]
+                        op_name = SMB2_OP_NAME_DESC.get(
+                            cmd_int, (f"UNKNOWN({cmd})", "")
+                        )[0]
             except (ValueError, TypeError) as e:
                 logger.debug(f"Error translating command {cmd}: {e}")
                 op_name = f"UNKNOWN({cmd})" if cmd is not None else "UNKNOWN"
