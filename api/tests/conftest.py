@@ -85,10 +85,13 @@ class MockSMB2ReplaySystem:
     ) -> dict[str, Any] | None:
         if "invalid" in pcap_path:
             return None
+        # Return format matches real _run_ingestion output
         return {
-            "sessions": ["smb2_session_0x1234.parquet"],
-            "total_frames": 500,
-            "processing_time": 2.5,
+            "sessions": {"0x1234": None},  # Dict of session_id -> DataFrame
+            "performance": {
+                "processing_time": 2.5,
+                "packets_processed": 500,
+            },
         }
 
     def validate_replay_readiness(

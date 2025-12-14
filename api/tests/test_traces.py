@@ -38,9 +38,10 @@ class TestTraceEndpoints:
 
     def test_ingest_trace_success(self, client: TestClient):
         """Test successful trace ingestion."""
+        # Path must be within traces folder (/stingray in mock config)
         response = client.post(
             "/api/traces/ingest",
-            json={"path": "/test/valid.pcap", "force": False, "reassembly": False},
+            json={"path": "/stingray/case1/valid.pcap", "force": False, "reassembly": False},
         )
         assert response.status_code == 200
 
@@ -53,7 +54,7 @@ class TestTraceEndpoints:
         """Test trace ingestion with force flag."""
         response = client.post(
             "/api/traces/ingest",
-            json={"path": "/test/valid.pcap", "force": True},
+            json={"path": "/stingray/case1/valid.pcap", "force": True},
         )
         assert response.status_code == 200
         assert response.json()["success"] is True
@@ -62,7 +63,7 @@ class TestTraceEndpoints:
         """Test trace ingestion with TCP reassembly."""
         response = client.post(
             "/api/traces/ingest",
-            json={"path": "/test/valid.pcap", "reassembly": True},
+            json={"path": "/stingray/case1/valid.pcap", "reassembly": True},
         )
         assert response.status_code == 200
         assert response.json()["success"] is True
@@ -71,7 +72,7 @@ class TestTraceEndpoints:
         """Test ingestion with invalid path returns failure."""
         response = client.post(
             "/api/traces/ingest",
-            json={"path": "/test/invalid.pcap"},
+            json={"path": "/stingray/case1/invalid.pcap"},
         )
         assert response.status_code == 200
 
