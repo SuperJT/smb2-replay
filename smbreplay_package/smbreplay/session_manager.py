@@ -606,56 +606,66 @@ class SessionManager:
         cmd_mapping = FIELD_MAPPINGS["smb2.cmd"]["mapping"]
 
         def get_op_name(x):
-            if x and pd.notna(x):
+            try:
+                # Handle None/NaN early - use try/except for numpy array edge cases
+                if x is None:
+                    return "UNKNOWN"
                 try:
-                    # Handle set/list values from normalize_cmd_vectorized in ingestion.py
-                    # Note: Parquet serializes sets to lists, so we need to handle both
-                    if isinstance(x, (set, list)):
-                        if x:
-                            # Take first command from collection and translate it
-                            first_cmd = x[0] if isinstance(x, list) else next(iter(x))
-                            normalized = str(int(str(first_cmd).strip()))
-                            result = cmd_mapping.get(normalized, f"UNKNOWN({first_cmd})")
-                            logger.debug(
-                                f"Command translation (collection): {x} -> {normalized} -> {result}"
-                            )
-                            return result
+                    if pd.isna(x):
                         return "UNKNOWN"
+                except (ValueError, TypeError):
+                    pass  # numpy arrays raise ValueError, continue processing
 
-                    # Handle string representations of lists/sets: "['5', '15']" or "{'5'}"
-                    x_str = str(x).strip()
-                    if x_str.startswith(("[", "{")):
-                        # Parse string-encoded collection: extract first number
-                        # Clean brackets and quotes, split by comma, take first
-                        cleaned = (
-                            x_str.replace("[", "")
-                            .replace("]", "")
-                            .replace("{", "")
-                            .replace("}", "")
-                            .replace("'", "")
-                            .replace('"', "")
+                # Handle collection types: list, set, tuple, or numpy array
+                # Note: Parquet returns numpy arrays, not Python lists
+                # Use pd.api.types.is_list_like which handles all array-like types
+                if pd.api.types.is_list_like(x) and not isinstance(x, str):
+                    if len(x) > 0:
+                        # Take first command from collection and translate it
+                        first_cmd = list(x)[0]  # Convert to list for consistent access
+                        normalized = str(int(str(first_cmd).strip()))
+                        result = cmd_mapping.get(normalized, f"UNKNOWN({first_cmd})")
+                        logger.debug(
+                            f"Command translation (collection): {x} -> {normalized} -> {result}"
                         )
-                        first_cmd = cleaned.split(",")[0].strip()
-                        if first_cmd:
-                            normalized = str(int(first_cmd))
-                            result = cmd_mapping.get(normalized, f"UNKNOWN({first_cmd})")
-                            logger.debug(
-                                f"Command translation (string-list): {x} -> {normalized} -> {result}"
-                            )
-                            return result
-                        return "UNKNOWN"
+                        return result
+                    return "UNKNOWN"
 
-                    # Original string handling via normalize lambda
-                    normalized = normalize_cmd(x)
-                    result = cmd_mapping.get(normalized, f"UNKNOWN({x})")
-                    logger.debug(
-                        f"Command translation: {x} -> {normalized} -> {result}"
+                # Handle string representations of lists/sets: "['5', '15']" or "['5' '15']"
+                x_str = str(x).strip()
+                if x_str.startswith(("[", "{")):
+                    # Parse string-encoded collection: extract first number
+                    # Clean brackets and quotes, split by comma or space (numpy uses spaces)
+                    cleaned = (
+                        x_str.replace("[", "")
+                        .replace("]", "")
+                        .replace("{", "")
+                        .replace("}", "")
+                        .replace("'", "")
+                        .replace('"', "")
                     )
-                    return result
-                except Exception as e:
-                    logger.debug(f"Error translating command {x}: {e}")
-                    return f"UNKNOWN({x})"
-            return "UNKNOWN"
+                    # Split by comma first, then by space (numpy arrays use spaces)
+                    parts = cleaned.split(",") if "," in cleaned else cleaned.split()
+                    first_cmd = parts[0].strip() if parts else ""
+                    if first_cmd:
+                        normalized = str(int(first_cmd))
+                        result = cmd_mapping.get(normalized, f"UNKNOWN({first_cmd})")
+                        logger.debug(
+                            f"Command translation (string-list): {x} -> {normalized} -> {result}"
+                        )
+                        return result
+                    return "UNKNOWN"
+
+                # Original string handling via normalize lambda
+                normalized = normalize_cmd(x)
+                result = cmd_mapping.get(normalized, f"UNKNOWN({x})")
+                logger.debug(
+                    f"Command translation: {x} -> {normalized} -> {result}"
+                )
+                return result
+            except Exception as e:
+                logger.debug(f"Error translating command {x}: {e}")
+                return f"UNKNOWN({x})"
 
         frames["op_name"] = frames["smb2.cmd"].apply(get_op_name)
 
@@ -885,61 +895,69 @@ class SessionManager:
             is_response = row.get("smb2.flags.response", "False") == "True"
 
             # Get command name using the same logic as vectorized method
+            op_name = "UNKNOWN"
             try:
-                if cmd and pd.notna(cmd):
-                    # Handle list/set values from Parquet (sets are serialized as lists)
-                    if isinstance(cmd, (list, set)):
-                        if cmd:
-                            first_cmd = cmd[0] if isinstance(cmd, list) else next(iter(cmd))
-                            cmd_int = int(str(first_cmd).strip())
-                            op_name = SMB2_OP_NAME_DESC.get(
-                                cmd_int, (f"UNKNOWN({first_cmd})", "")
-                            )[0]
-                        else:
-                            op_name = "UNKNOWN"
-                    else:
-                        # Handle string representations of lists/sets first
-                        cmd_str = str(cmd).strip()
-                        if cmd_str.startswith(("[", "{")):
-                            # String-encoded collection: "['5', '15']" or "{'5'}"
-                            cmd_cleaned = (
-                                cmd_str.replace("[", "")
-                                .replace("]", "")
-                                .replace("{", "")
-                                .replace("}", "")
-                                .replace("'", "")
-                                .replace('"', "")
-                            )
-                            first_cmd = cmd_cleaned.split(",")[0].strip()
-                            cmd_int = int(first_cmd) if first_cmd else -1
-                        else:
-                            # Regular string: clean and parse
-                            cmd_cleaned = (
-                                cmd_str.split(",")[0]
-                                .strip()
-                                .replace("{", "")
-                                .replace("}", "")
-                                .replace("[", "")
-                                .replace("]", "")
-                                .replace("'", "")
-                            )
-                            # Parse as integer directly, avoiding masked float conversion
-                            # Handle hex strings (0x...) and decimal strings
-                            if cmd_cleaned.startswith("0x"):
-                                cmd_int = int(cmd_cleaned, 16)
-                            elif "." in cmd_cleaned:
-                                # Only use float conversion if there's a decimal point
-                                cmd_int = int(float(cmd_cleaned))
-                            else:
-                                cmd_int = int(cmd_cleaned)
+                # Handle None early
+                if cmd is None:
+                    pass  # op_name already set to UNKNOWN
+                # Check for NaN - handle numpy array edge case
+                elif not pd.api.types.is_list_like(cmd) and pd.isna(cmd):
+                    pass  # op_name already set to UNKNOWN
+                # Handle collection types: list, set, tuple, or numpy array
+                elif pd.api.types.is_list_like(cmd) and not isinstance(cmd, str):
+                    if len(cmd) > 0:
+                        first_cmd = list(cmd)[0]  # Convert for consistent access
+                        cmd_int = int(str(first_cmd).strip())
                         op_name = SMB2_OP_NAME_DESC.get(
-                            cmd_int, (f"UNKNOWN({cmd})", "")
+                            cmd_int, (f"UNKNOWN({first_cmd})", "")
                         )[0]
                 else:
-                    op_name = "UNKNOWN"
+                    # Handle string representations of lists/sets first
+                    cmd_str = str(cmd).strip()
+                    if cmd_str.startswith(("[", "{")):
+                        # String-encoded collection: "['5', '15']" or "['5' '15']"
+                        cmd_cleaned = (
+                            cmd_str.replace("[", "")
+                            .replace("]", "")
+                            .replace("{", "")
+                            .replace("}", "")
+                            .replace("'", "")
+                            .replace('"', "")
+                        )
+                        # Split by comma or space (numpy arrays use spaces)
+                        parts = (
+                            cmd_cleaned.split(",")
+                            if "," in cmd_cleaned
+                            else cmd_cleaned.split()
+                        )
+                        first_cmd = parts[0].strip() if parts else ""
+                        cmd_int = int(first_cmd) if first_cmd else -1
+                    else:
+                        # Regular string: clean and parse
+                        cmd_cleaned = (
+                            cmd_str.split(",")[0]
+                            .strip()
+                            .replace("{", "")
+                            .replace("}", "")
+                            .replace("[", "")
+                            .replace("]", "")
+                            .replace("'", "")
+                        )
+                        # Parse as integer directly, avoiding masked float conversion
+                        # Handle hex strings (0x...) and decimal strings
+                        if cmd_cleaned.startswith("0x"):
+                            cmd_int = int(cmd_cleaned, 16)
+                        elif "." in cmd_cleaned:
+                            # Only use float conversion if there's a decimal point
+                            cmd_int = int(float(cmd_cleaned))
+                        else:
+                            cmd_int = int(cmd_cleaned)
+                    op_name = SMB2_OP_NAME_DESC.get(
+                        cmd_int, (f"UNKNOWN({cmd})", "")
+                    )[0]
             except (ValueError, TypeError) as e:
                 logger.debug(f"Error translating command {cmd}: {e}")
-                op_name = f"UNKNOWN({cmd})" if cmd else "UNKNOWN"
+                op_name = f"UNKNOWN({cmd})" if cmd is not None else "UNKNOWN"
 
             # Handle status description
             status_desc = (
