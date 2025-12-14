@@ -8,6 +8,7 @@ import os
 import pickle
 import sys
 import threading
+from pathlib import Path
 from typing import TypedDict
 
 # Default configurations
@@ -23,7 +24,7 @@ DEFAULT_REPLAY_CONFIG = {
     "max_wait": 5.0,
 }
 
-# Map verbosity levels (0–3) to logging levels
+# Map verbosity levels (0-3) to logging levels
 VERBOSITY_TO_LOGGING = {
     0: logging.CRITICAL,  # Only critical errors
     1: logging.INFO,  # Info and above
@@ -51,23 +52,21 @@ class ConfigManager:
         if config_dir is None:
             # Use user-specific config directory
             if os.name == "nt":  # Windows
-                config_dir = os.path.expanduser("~\\AppData\\Local\\smbreplay")
+                config_dir = str(Path.home() / "AppData" / "Local" / "smbreplay")
             else:  # Unix-like systems
-                config_dir = os.path.expanduser("~/.config/smbreplay")
+                config_dir = str(Path.home() / ".config" / "smbreplay")
 
         # Determine XDG_STATE_HOME for logs/state
         if state_dir is None:
             xdg_state_home = os.environ.get("XDG_STATE_HOME")
             if xdg_state_home:
-                state_dir = os.path.join(
-                    os.path.expanduser(xdg_state_home), "smbreplay"
-                )
+                state_dir = str(Path(xdg_state_home).expanduser() / "smbreplay")
             else:
-                state_dir = os.path.expanduser("~/.local/state/smbreplay")
+                state_dir = str(Path.home() / ".local" / "state" / "smbreplay")
 
         self.config_dir = config_dir
         self.state_dir = state_dir
-        self.config_file = os.path.join(self.config_dir, "config.pkl")
+        self.config_file = str(Path(self.config_dir) / "config.pkl")
 
         # Initialize configurations
         self.pcap_config: PcapConfig = DEFAULT_PCAP_CONFIG.copy()  # type: ignore
@@ -75,7 +74,7 @@ class ConfigManager:
 
         # Set up traces folder path (but don't create it yet)
         self.traces_folder: str = os.environ.get(
-            "TRACES_FOLDER", os.path.expanduser("~/cases")
+            "TRACES_FOLDER", str(Path.home() / "cases")
         )
 
         # Set up session output directory (for processed session data)
@@ -107,14 +106,14 @@ class ConfigManager:
     def _ensure_dirs_created(self):
         """Ensure config and traces directories are created (lazy initialization)."""
         if not self._dirs_created:
-            os.makedirs(self.config_dir, exist_ok=True)
-            os.makedirs(self.traces_folder, exist_ok=True)
+            Path(self.config_dir).mkdir(parents=True, exist_ok=True)
+            Path(self.traces_folder).mkdir(parents=True, exist_ok=True)
             self._dirs_created = True
 
     def _ensure_state_dirs_created(self):
         """Ensure state (log) directory is created (lazy initialization)."""
         if not self._state_dirs_created:
-            os.makedirs(self.state_dir, exist_ok=True)
+            Path(self.state_dir).mkdir(parents=True, exist_ok=True)
             self._state_dirs_created = True
 
     def _ensure_config_loaded(self):
@@ -151,9 +150,10 @@ class ConfigManager:
         Validates loaded data types to prevent pickle deserialization attacks.
         """
         with self._file_lock:
-            if os.path.exists(self.config_file):
+            config_path = Path(self.config_file)
+            if config_path.exists():
                 try:
-                    with open(self.config_file, "rb") as f:
+                    with config_path.open("rb") as f:
                         loaded_config = pickle.load(f)
 
                     # Validate that loaded_config is a dict (prevent arbitrary object attacks)
@@ -244,7 +244,7 @@ class ConfigManager:
 
         # File handler for persistent logs (create state dirs only when needed)
         self._ensure_state_dirs_created()
-        log_file = os.path.join(self.state_dir, "smbreplay.log")
+        log_file = str(Path(self.state_dir) / "smbreplay.log")
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(
             logging.Formatter(
@@ -272,7 +272,7 @@ class ConfigManager:
         self._ensure_dirs_created()  # Create dirs only when saving
         with self._file_lock:
             try:
-                with open(self.config_file, "wb") as f:
+                with Path(self.config_file).open("wb") as f:
                     pickle.dump(
                         {
                             "pcap_config": self.pcap_config,
@@ -325,7 +325,7 @@ class ConfigManager:
 
     def set_traces_folder(self, path: str):
         """Set traces folder path."""
-        self.traces_folder = str(os.path.expanduser(path))
+        self.traces_folder = str(Path(path).expanduser())
         # Only create the directory when it's actually needed
         self._dirs_created = False  # Reset flag to recreate dirs with new path
         self.save_config()
@@ -336,7 +336,7 @@ class ConfigManager:
 
     def set_session_output_dir(self, path: str):
         """Set session output directory path."""
-        self.session_output_dir = str(os.path.expanduser(path))
+        self.session_output_dir = str(Path(path).expanduser())
         self._dirs_created = False  # Reset flag to recreate dirs with new path
         self.save_config()
 
@@ -376,23 +376,23 @@ class ConfigManager:
             True if directory is valid and writable, False otherwise.
         """
         case_id = case_id or self.current_case_id or "2010101010"
-        path = os.path.join(self.traces_folder, case_id)
+        case_path = Path(self.traces_folder) / case_id
 
         self._ensure_dirs_created()  # Ensure traces_folder exists
 
-        if not os.path.exists(path):
+        if not case_path.exists():
             try:
-                os.makedirs(path, exist_ok=True)
-                self.logger.info(f"Created case directory: {path}")
+                case_path.mkdir(parents=True, exist_ok=True)
+                self.logger.info(f"Created case directory: {case_path}")
             except OSError as e:
-                self.logger.error(f"Failed to create {path}: {e}")
+                self.logger.error(f"Failed to create {case_path}: {e}")
                 return False
 
-        if os.access(path, os.W_OK | os.R_OK):
-            self.logger.info(f"Case directory validated: {path}")
+        if os.access(case_path, os.W_OK | os.R_OK):
+            self.logger.info(f"Case directory validated: {case_path}")
             return True
         else:
-            self.logger.error(f"Case directory not accessible: {path}")
+            self.logger.error(f"Case directory not accessible: {case_path}")
             return False
 
     def get_case_id(self) -> str | None:
@@ -523,8 +523,6 @@ class ConfigManager:
         Returns:
             Path to the session file or None if not found
         """
-        import glob
-
         # Get current case and trace from config
         case_id = self.get_case_id()
         trace_name = self.get_trace_name()
@@ -536,12 +534,12 @@ class ConfigManager:
             return None
 
         # Build the expected path pattern
-        sessions_dir = os.path.join(
-            self.traces_folder,
-            case_id,
-            ".tracer",
-            trace_name.replace(".pcapng", ""),
-            "sessions",
+        sessions_dir = (
+            Path(self.traces_folder)
+            / case_id
+            / ".tracer"
+            / trace_name.replace(".pcapng", "")
+            / "sessions"
         )
 
         # Look for session files matching the session ID
@@ -551,11 +549,10 @@ class ConfigManager:
         ]
 
         for pattern in patterns:
-            search_path = os.path.join(sessions_dir, pattern)
-            matches = glob.glob(search_path)
+            matches = list(sessions_dir.glob(pattern))
             if matches:
                 self.logger.info(f"Found session file: {matches[0]}")
-                return matches[0]
+                return str(matches[0])
 
         self.logger.warning(f"No session file found for session ID: {session_id}")
         return None

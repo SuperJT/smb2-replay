@@ -3,15 +3,15 @@
 Test script to verify the SMB2 Replay environment setup
 """
 
-import os
 import sys
+from pathlib import Path
 
 
 def test_imports():
     """Test that all required packages can be imported"""
     print("Testing Python environment setup...")
     print(f"Python version: {sys.version}")
-    print(f"Current directory: {os.getcwd()}")
+    print(f"Current directory: {Path.cwd()}")
     print()
 
     # Test core dependencies
@@ -48,7 +48,7 @@ def test_package_structure():
     print("Testing package structure...")
 
     # Get the directory where this script is located
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    script_dir = Path(__file__).resolve().parent
 
     required_files = [
         "__init__.py",
@@ -65,8 +65,8 @@ def test_package_structure():
 
     missing = []
     for file in required_files:
-        file_path = os.path.join(script_dir, file)
-        if os.path.exists(file_path):
+        file_path = script_dir / file
+        if file_path.exists():
             print(f"✓ Found: {file}")
         else:
             print(f"✗ Missing: {file}")
@@ -99,7 +99,7 @@ def test_system_tools():
     for tool, description, args in tools:
         try:
             result = subprocess.run(
-                [tool] + args, capture_output=True, text=True, timeout=5, check=False
+                [tool, *args], capture_output=True, text=True, timeout=5, check=False
             )
             # pcapfix returns non-zero on --version but still shows version info
             if result.returncode == 0 or (

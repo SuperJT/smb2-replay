@@ -116,36 +116,32 @@ def __getattr__(name):
             FIELD_MAPPINGS,
             check_tshark_availability,
         ) = _get_constants()
-        if name == "SMB2_OP_NAME_DESC":
-            return SMB2_OP_NAME_DESC
-        elif name == "FSCTL_CONSTANTS":
-            return FSCTL_CONSTANTS
-        elif name == "FIELD_MAPPINGS":
-            return FIELD_MAPPINGS
-        elif name == "check_tshark_availability":
-            return check_tshark_availability
+        return {
+            "SMB2_OP_NAME_DESC": SMB2_OP_NAME_DESC,
+            "FSCTL_CONSTANTS": FSCTL_CONSTANTS,
+            "FIELD_MAPPINGS": FIELD_MAPPINGS,
+            "check_tshark_availability": check_tshark_availability,
+        }[name]
     elif name in ("run_ingestion", "load_ingested_data", "validate_ingested_data"):
         run_ingestion, load_ingested_data, validate_ingested_data = _get_ingestion()
-        if name == "run_ingestion":
-            return run_ingestion
-        elif name == "load_ingested_data":
-            return load_ingested_data
-        elif name == "validate_ingested_data":
-            return validate_ingested_data
+        return {
+            "run_ingestion": run_ingestion,
+            "load_ingested_data": load_ingested_data,
+            "validate_ingested_data": validate_ingested_data,
+        }[name]
     elif name in ("get_session_manager", "SessionManager"):
         get_session_manager, SessionManager = _get_session_manager()
-        if name == "get_session_manager":
-            return get_session_manager
-        elif name == "SessionManager":
-            return SessionManager
+        return {
+            "get_session_manager": get_session_manager,
+            "SessionManager": SessionManager,
+        }[name]
     elif name in ("replay_session", "validate_operations", "get_supported_commands"):
         replay_session, validate_operations, get_supported_commands = _get_replay()
-        if name == "replay_session":
-            return replay_session
-        elif name == "validate_operations":
-            return validate_operations
-        elif name == "get_supported_commands":
-            return get_supported_commands
+        return {
+            "replay_session": replay_session,
+            "validate_operations": validate_operations,
+            "get_supported_commands": get_supported_commands,
+        }[name]
     elif name in (
         "format_bytes",
         "format_duration",
@@ -156,55 +152,52 @@ def __getattr__(name):
         format_bytes, format_duration, Timer, safe_json_serialize, get_file_info = (
             _get_utils()
         )
-        if name == "format_bytes":
-            return format_bytes
-        elif name == "format_duration":
-            return format_duration
-        elif name == "Timer":
-            return Timer
-        elif name == "safe_json_serialize":
-            return safe_json_serialize
-        elif name == "get_file_info":
-            return get_file_info
+        return {
+            "format_bytes": format_bytes,
+            "format_duration": format_duration,
+            "Timer": Timer,
+            "safe_json_serialize": safe_json_serialize,
+            "get_file_info": get_file_info,
+        }[name]
 
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
 # Define public API
 __all__ = [
-    # Main system
-    "SMB2ReplaySystem",
-    "main",
-    # Configuration
-    "get_config",
-    "get_logger",
-    "set_verbosity",
+    "FIELD_MAPPINGS",
+    "FSCTL_CONSTANTS",
     # Constants
     "SMB2_OP_NAME_DESC",
-    "FSCTL_CONSTANTS",
-    "FIELD_MAPPINGS",
-    "check_tshark_availability",
-    # Ingestion
-    "run_ingestion",
-    "load_ingested_data",
-    "validate_ingested_data",
-    # Session management
-    "get_session_manager",
+    # Main system
+    "SMB2ReplaySystem",
     "SessionManager",
-    # Replay
-    "replay_session",
-    "validate_operations",
-    "get_supported_commands",
+    "Timer",
+    "__author__",
+    "__description__",
+    # Package info
+    "__version__",
+    "check_tshark_availability",
     # Utilities
     "format_bytes",
     "format_duration",
-    "Timer",
-    "safe_json_serialize",
+    # Configuration
+    "get_config",
     "get_file_info",
-    # Package info
-    "__version__",
-    "__author__",
-    "__description__",
+    "get_logger",
+    # Session management
+    "get_session_manager",
+    "get_supported_commands",
+    "load_ingested_data",
+    "main",
+    # Replay
+    "replay_session",
+    # Ingestion
+    "run_ingestion",
+    "safe_json_serialize",
+    "set_verbosity",
+    "validate_ingested_data",
+    "validate_operations",
 ]
 
 

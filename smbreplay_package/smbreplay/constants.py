@@ -6,6 +6,7 @@ Contains all SMB2 protocol constants, field mappings, and utility functions.
 import os
 import subprocess
 import uuid
+from pathlib import Path
 
 import pandas as pd
 from smbprotocol.header import NtStatus
@@ -316,9 +317,9 @@ def normalize_fid(value):
 
 def generate_smb2_fields(force_regenerate: bool = False) -> list[str]:
     """Generate SMB2 fields from tshark if needed."""
-    smb2_fields_file = "smb2_fields.txt"
+    smb2_fields_path = Path("smb2_fields.txt")
 
-    if not os.path.exists(smb2_fields_file) or force_regenerate:
+    if not smb2_fields_path.exists() or force_regenerate:
         if not check_tshark_availability():
             raise RuntimeError("Local tshark is not available")
 
@@ -336,16 +337,16 @@ def generate_smb2_fields(force_regenerate: bool = False) -> list[str]:
         ]
 
         # Write filtered results to file
-        with open(smb2_fields_file, "w") as f:
+        with smb2_fields_path.open("w") as f:
             f.write("\n".join(smb2_lines))
             if smb2_lines:
                 f.write("\n")
 
-    with open(smb2_fields_file) as f:
+    with smb2_fields_path.open() as f:
         smb2_field_lines = f.readlines()
 
     if not smb2_field_lines:
-        raise RuntimeError(f"{smb2_fields_file} is empty")
+        raise RuntimeError(f"{smb2_fields_path} is empty")
 
     smb2_fields = []
     for line in smb2_field_lines:

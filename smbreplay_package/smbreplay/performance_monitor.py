@@ -6,10 +6,10 @@ Provides utilities to measure and track performance improvements in the SMB2 rep
 import functools
 import gc
 import json
-import os
 import time
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -120,7 +120,7 @@ class PerformanceMonitor:
         # Benchmark iterrows (slow method)
         start_time = time.time()
         count = 0
-        for idx, row in sample_df.iterrows():
+        for _idx, _row in sample_df.iterrows():
             count += 1
             if count >= 100:  # Limit to avoid long execution
                 break
@@ -317,7 +317,7 @@ class PerformanceMonitor:
             },
         }
 
-        with open(filepath, "w") as f:
+        with Path(filepath).open("w") as f:
             json.dump(report, f, indent=2)
 
         logger.info(f"Performance report saved to: {filepath}")
@@ -381,7 +381,7 @@ def benchmark_optimizations(sample_data_path: str | None = None) -> dict[str, An
     }
 
     # Create sample DataFrame for testing
-    if sample_data_path and os.path.exists(sample_data_path):
+    if sample_data_path and Path(sample_data_path).exists():
         logger.info(f"Loading sample data from: {sample_data_path}")
         sample_df = pd.read_parquet(sample_data_path)
     else:

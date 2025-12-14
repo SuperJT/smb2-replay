@@ -10,6 +10,7 @@ import gc
 import os
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -45,7 +46,7 @@ class SessionManager:
         config = get_config()
         capture = config.get_capture_path()
 
-        if capture and os.path.exists(capture):
+        if capture and Path(capture).exists():
             logger.info(f"Loaded capture path: {capture}")
             return capture
 
@@ -68,11 +69,11 @@ class SessionManager:
             return None
 
         try:
-            capture_path = os.path.normpath(capture_path)
+            capture_path_obj = Path(capture_path).resolve()
 
             # Extract case number from capture path
             case_number = "local_case"  # Default for local development
-            parts = capture_path.split(os.sep)
+            parts = capture_path_obj.parts
             # Check for both "cases" (local) and "stingray" (Docker) folders
             for folder_name in ["cases", "stingray"]:
                 if folder_name in parts:
@@ -81,13 +82,13 @@ class SessionManager:
                         case_number = parts[folder_index + 1]
                         break
 
-            trace_name = os.path.basename(capture_path).split(".")[0]
+            trace_name = capture_path_obj.stem
 
             # Use create_session_directory from tshark_processor
             output_dir = create_session_directory(case_number, trace_name)
 
             # Verify directory exists and is writable
-            if not os.path.exists(output_dir):
+            if not Path(output_dir).exists():
                 logger.error(f"Directory {output_dir} does not exist")
                 return None
 
@@ -163,7 +164,7 @@ class SessionManager:
             try:
                 # Extract case number and trace name from output_dir path
                 # Expected format: /.../case_number/.tracer/trace_name/sessions
-                parts = output_dir.split(os.sep)
+                parts = Path(output_dir).parts
                 if ".tracer" in parts:
                     tracer_index = parts.index(".tracer")
                     if tracer_index > 0 and tracer_index + 1 < len(parts):
@@ -193,15 +194,15 @@ class SessionManager:
         else:
             # Parquet-only mode (legacy)
             try:
-                if not os.path.exists(output_dir):
+                output_dir_path = Path(output_dir)
+                if not output_dir_path.exists():
                     logger.warning(f"Output directory does not exist: {output_dir}")
                     return []
 
-                files = os.listdir(output_dir)
                 session_files = [
-                    f
-                    for f in files
-                    if f.startswith("smb2_session_") and f.endswith(".parquet")
+                    f.name
+                    for f in output_dir_path.iterdir()
+                    if f.name.startswith("smb2_session_") and f.name.endswith(".parquet")
                 ]
 
                 logger.info(f"Found {len(session_files)} session files in {output_dir}")
@@ -267,7 +268,7 @@ class SessionManager:
 
                 # Try database first if enabled
                 if os.getenv("USE_DATABASE", "true").lower() == "true":
-                    parts = output_dir.split(os.sep)
+                    parts = Path(output_dir).parts
                     if ".tracer" in parts:
                         tracer_index = parts.index(".tracer")
                         if tracer_index > 0 and tracer_index + 1 < len(parts):
@@ -298,14 +299,14 @@ class SessionManager:
 
         # Fallback to Parquet file
         try:
-            session_path = os.path.join(output_dir, session_file)
+            session_path = Path(output_dir) / session_file
 
-            if not os.path.exists(session_path):
+            if not session_path.exists():
                 logger.error(f"Session file not found: {session_path}")
                 return False
 
             # Load with optimized settings
-            table = pq.read_table(session_path)
+            table = pq.read_table(str(session_path))
             self.session_frames = table.to_pandas()
 
             # Optimize DataFrame dtypes for better performance
@@ -660,7 +661,9 @@ class SessionManager:
                             if cmd:
                                 try:
                                     normalized = str(int(cmd))
-                                    name = cmd_mapping.get(normalized, f"UNKNOWN({cmd})")
+                                    name = cmd_mapping.get(
+                                        normalized, f"UNKNOWN({cmd})"
+                                    )
                                     names.append(name)
                                 except (ValueError, TypeError):
                                     names.append(f"UNKNOWN({cmd})")
@@ -675,9 +678,7 @@ class SessionManager:
                 # Original string handling via normalize lambda
                 normalized = normalize_cmd(x)
                 result = cmd_mapping.get(normalized, f"UNKNOWN({x})")
-                logger.debug(
-                    f"Command translation: {x} -> {normalized} -> {result}"
-                )
+                logger.debug(f"Command translation: {x} -> {normalized} -> {result}")
                 return result
             except Exception as e:
                 logger.debug(f"Error translating command {x}: {e}")
@@ -806,9 +807,10 @@ class SessionManager:
                         )
                         continue
                     try:
+                        # Use default argument m=mapping to capture loop variable by value
                         filtered_frames[f"{field}_desc"] = filtered_frames[field].apply(
-                            lambda x: (
-                                mapping.get(str(x), "")
+                            lambda x, m=mapping: (
+                                m.get(str(x), "")
                                 if pd.notna(x)
                                 and str(x).strip() != ""
                                 and str(x) != "None"
@@ -914,10 +916,7 @@ class SessionManager:
             op_name = "UNKNOWN"
             try:
                 # Handle None early
-                if cmd is None:
-                    pass  # op_name already set to UNKNOWN
-                # Check for NaN - handle numpy array edge case
-                elif not pd.api.types.is_list_like(cmd) and pd.isna(cmd):
+                if cmd is None or (not pd.api.types.is_list_like(cmd) and pd.isna(cmd)):
                     pass  # op_name already set to UNKNOWN
                 # Handle collection types: list, set, tuple, or numpy array
                 elif pd.api.types.is_list_like(cmd) and not isinstance(cmd, str):

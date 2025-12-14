@@ -13,6 +13,7 @@ import traceback
 from collections import OrderedDict
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -193,8 +194,9 @@ def extract_sessions_from_dataframe_optimized(
         # Efficient boolean indexing
         # Use 'x is not None' instead of 'if x' to handle empty sets correctly
         # (empty set() is falsy but still valid for 'in' check)
+        # Use default argument s=sesid to capture loop variable by value
         session_mask = df_sesids_normalized.apply(
-            lambda x: sesid in x if x is not None else False
+            lambda x, s=sesid: s in x if x is not None else False
         )
         session_df = df[session_mask].copy()
 
@@ -297,8 +299,8 @@ def save_session_metadata(
         # Convert any numpy types to native Python types
         metadata = _convert_numpy_types(metadata)
 
-        metadata_path = os.path.join(output_dir, "session_metadata.json")
-        with open(metadata_path, "w") as f:
+        metadata_path = Path(output_dir) / "session_metadata.json"
+        with metadata_path.open("w") as f:
             json.dump(metadata, f, indent=2)
 
         logger.info(
@@ -531,14 +533,15 @@ def run_ingestion(
             status_callback("Critical: No valid capture path available for ingestion")
             return None
 
-        if not os.path.exists(capture_path):
+        capture_path_obj = Path(capture_path)
+        if not capture_path_obj.exists():
             logger.critical(f"Capture file not found: {capture_path}")
             if status_callback is not None:
                 status_callback(f"Error - Capture file not found: {capture_path}")
             return None
 
-        capture_path = os.path.abspath(capture_path)
-        trace_name = os.path.basename(capture_path).split(".")[0]
+        capture_path = str(capture_path_obj.resolve())
+        trace_name = capture_path_obj.stem
 
         logger.info(f"Validating PCAP: {capture_path}")
         status_callback(f"Starting optimized ingestion for {trace_name}")
@@ -579,19 +582,18 @@ def run_ingestion(
         traces_folder = get_config().get_traces_folder()
 
         # Normalize both paths for comparison (resolve symlinks, remove trailing slashes)
-        norm_capture = os.path.normpath(os.path.realpath(capture_path))
-        norm_traces = os.path.normpath(os.path.realpath(traces_folder))
+        norm_capture = Path(capture_path).resolve()
+        norm_traces = Path(traces_folder).resolve()
 
         # Check if capture path is within traces folder
-        if norm_capture.startswith(norm_traces + os.sep):
-            # Get the relative path after traces folder
-            relative_path = norm_capture[len(norm_traces) :].lstrip(os.sep)
-            parts = relative_path.split(os.sep)
+        try:
+            relative_path = norm_capture.relative_to(norm_traces)
+            parts = relative_path.parts
             if parts and parts[0]:
                 case_number = parts[0]
-        else:
+        except ValueError:
             # Fallback: look for "cases" in path for backward compatibility
-            parts = capture_path.split(os.sep)
+            parts = Path(capture_path).parts
             if "cases" in parts:
                 cases_index = parts.index("cases")
                 if cases_index + 1 < len(parts):
@@ -702,7 +704,7 @@ def run_ingestion(
                             trace_name=trace_name,
                             capture_path=capture_path,
                             packet_count=packet_count,
-                            file_size=os.path.getsize(capture_path),
+                            file_size=Path(capture_path).stat().st_size,
                             sessions=sessions,
                             status_callback=status_callback,
                         )
@@ -719,7 +721,7 @@ def run_ingestion(
             else:
                 # Parquet-only mode: Save to Parquet files (legacy behavior)
                 logger.info("Parquet mode enabled - saving to Parquet files...")
-                parquet_path = os.path.join(output_dir, "tshark_output_full.parquet")
+                parquet_path = str(Path(output_dir) / "tshark_output_full.parquet")
 
                 # Monitor memory before saving
                 available_memory = psutil.virtual_memory().available / 1024**2
@@ -738,8 +740,8 @@ def run_ingestion(
 
                 # Save individual sessions with progress tracking
                 for i, (sesid, session_df) in enumerate(sessions.items(), 1):
-                    session_parquet = os.path.join(
-                        output_dir, f"smb2_session_{sesid}.parquet"
+                    session_parquet = str(
+                        Path(output_dir) / f"smb2_session_{sesid}.parquet"
                     )
                     save_to_parquet(session_df, session_parquet)
 
@@ -808,18 +810,19 @@ def load_ingested_data(case_number: str, trace_name: str) -> dict[str, Any] | No
         )
 
         # Load full dataset
-        parquet_path = os.path.join(output_dir, "tshark_output_full.parquet")
-        if not os.path.exists(parquet_path):
+        output_dir_path = Path(output_dir)
+        parquet_path = output_dir_path / "tshark_output_full.parquet"
+        if not parquet_path.exists():
             logger.warning(f"Full dataset not found at {parquet_path}")
             return None
 
-        full_df = pq.read_table(parquet_path).to_pandas()
+        full_df = pq.read_table(str(parquet_path)).to_pandas()
         logger.info(f"Loaded full dataset with {len(full_df)} frames")
 
         # Load session metadata
-        metadata_path = os.path.join(output_dir, "session_metadata.json")
-        if os.path.exists(metadata_path):
-            with open(metadata_path) as f:
+        metadata_path = output_dir_path / "session_metadata.json"
+        if metadata_path.exists():
+            with metadata_path.open() as f:
                 metadata = json.load(f)
             logger.info(f"Loaded metadata for {metadata['session_count']} sessions")
         else:
@@ -829,14 +832,14 @@ def load_ingested_data(case_number: str, trace_name: str) -> dict[str, Any] | No
         # Load individual sessions
         sessions = {}
         session_files = [
-            f
-            for f in os.listdir(output_dir)
-            if f.startswith("smb2_session_") and f.endswith(".parquet")
+            f.name
+            for f in output_dir_path.iterdir()
+            if f.name.startswith("smb2_session_") and f.name.endswith(".parquet")
         ]
 
         for session_file in session_files:
             sesid = session_file.replace("smb2_session_", "").replace(".parquet", "")
-            session_path = os.path.join(output_dir, session_file)
+            session_path = output_dir_path / session_file
 
             try:
                 session_df = pq.read_table(session_path).to_pandas()

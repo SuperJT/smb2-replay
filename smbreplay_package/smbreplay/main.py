@@ -9,6 +9,7 @@ import logging
 import os
 import signal
 import sys
+from pathlib import Path
 from typing import Any
 
 # Only import lightweight modules at startup
@@ -249,25 +250,25 @@ class SMB2ReplaySystem:
             return []
 
         # If case_id is configured, look in traces_folder/case_id/
-        search_folder = os.path.join(traces_folder, case_id)
+        search_path = Path(traces_folder) / case_id
 
-        if not os.path.exists(search_folder):
-            _get_logger().warning(f"Case folder does not exist: {search_folder}")
+        if not search_path.exists():
+            _get_logger().warning(f"Case folder does not exist: {search_path}")
             return []
 
         trace_files = []
         try:
-            for root, dirs, files in os.walk(search_folder):
+            for root, _dirs, files in os.walk(search_path):
                 for file in files:
                     if file.lower().endswith((".pcap", ".pcapng", ".trc", ".trc0")):
                         # Get full path for validation
-                        full_path = os.path.join(root, file)
+                        full_path = Path(root) / file
 
                         # Validate the PCAP file using tshark
-                        if _validate_pcap_file(full_path):
+                        if _validate_pcap_file(str(full_path)):
                             # Get relative path from search folder
-                            relative_path = os.path.relpath(full_path, search_folder)
-                            trace_files.append(relative_path)
+                            relative_path = full_path.relative_to(search_path)
+                            trace_files.append(str(relative_path))
                         else:
                             _get_logger().debug(
                                 f"Skipping invalid PCAP file: {full_path}"
@@ -307,7 +308,7 @@ class SMB2ReplaySystem:
         _get_logger().info(f"Analyzing session: {session_file}")
 
         # Load session data
-        session_frames, field_options, file_options, selected_fields = (
+        session_frames, field_options, _file_options, selected_fields = (
             self.session_manager.load_and_summarize_session(capture_path, session_file)
         )
 
@@ -538,7 +539,7 @@ class SMB2ReplaySystem:
         }
 
         if not paths:
-            safe_print("ℹ️  No paths to clean up")
+            safe_print("[INFO] No paths to clean up")
             return results
 
         # Normalize paths - strip leading slashes and convert to backslashes
@@ -697,7 +698,7 @@ class SMB2ReplaySystem:
                     existing_files.add(filename.lstrip("\\/"))
 
             if not all_paths:
-                safe_print("ℹ️  No file paths to setup")
+                safe_print("[INFO] No file paths to setup")
                 return results
 
             # Clean up existing files first to ensure clean replay
@@ -1229,31 +1230,29 @@ def resolve_pcap_path(args, config) -> str | None:
     """
     # Direct pcap_file argument (highest priority)
     if hasattr(args, "pcap_file") and args.pcap_file:
-        return os.path.abspath(args.pcap_file)
+        return str(Path(args.pcap_file).resolve())
 
     # --case + --trace combination
     if hasattr(args, "case") and args.case and hasattr(args, "trace") and args.trace:
         traces_folder = config.get_traces_folder()
-        case_path = os.path.join(traces_folder, args.case)
-        trace_path = os.path.join(case_path, args.trace)
+        # Handle escaped spaces
+        trace_arg = args.trace.replace("\\ ", " ")
+        trace_path = Path(traces_folder) / args.case / trace_arg
 
-        # Handle escaped spaces and normalize path
-        trace_path = trace_path.replace("\\ ", " ")
-        trace_path = os.path.normpath(trace_path)
-
-        if os.path.exists(trace_path):
-            return os.path.abspath(trace_path)
+        if trace_path.exists():
+            return str(trace_path.resolve())
         else:
             _get_logger().error(f"Trace file not found: {trace_path}")
             return None
 
     # --trace only
     if hasattr(args, "trace") and args.trace:
-        trace_path = args.trace.replace("\\ ", " ")
+        trace_arg = args.trace.replace("\\ ", " ")
+        trace_path = Path(trace_arg)
 
         # If --trace is an absolute path, allow it (full path override)
-        if os.path.isabs(trace_path):
-            return os.path.abspath(trace_path)
+        if trace_path.is_absolute():
+            return str(trace_path.resolve())
 
         # If --trace is relative, require case_id to be configured
         case_id = config.get_case_id()
@@ -1265,12 +1264,10 @@ def resolve_pcap_path(args, config) -> str | None:
 
         # Build path using configured case_id
         traces_folder = config.get_traces_folder()
-        case_path = os.path.join(traces_folder, case_id)
-        trace_path = os.path.join(case_path, trace_path)
-        trace_path = os.path.normpath(trace_path)
+        trace_path = Path(traces_folder) / case_id / trace_arg
 
-        if os.path.exists(trace_path):
-            return os.path.abspath(trace_path)
+        if trace_path.exists():
+            return str(trace_path.resolve())
         else:
             _get_logger().error(f"Trace file not found: {trace_path}")
             return None
@@ -1298,7 +1295,7 @@ def handle_config_command(args, config):
 
         # If trace name is not configured but capture path is available, derive it
         if not trace_name and capture_path:
-            trace_name = os.path.basename(capture_path)
+            trace_name = Path(capture_path).name
 
         # Handle format attribute - it might not exist if we defaulted to show
         format_type = getattr(args, "format", "table")
@@ -1697,13 +1694,12 @@ def _main_impl():
                             "StatusDesc",
                             "Tree",
                             "orig_idx",
-                        ]:
-                            if (
-                                value
-                                and str(value).strip() != "N/A"
-                                and str(value).strip() != ""
-                            ):
-                                extra_fields.append(f"{key}: {value}")
+                        ] and (
+                            value
+                            and str(value).strip() != "N/A"
+                            and str(value).strip() != ""
+                        ):
+                            extra_fields.append(f"{key}: {value}")
 
                     if extra_fields:
                         safe_print(f"     Additional: {' | '.join(extra_fields)}")

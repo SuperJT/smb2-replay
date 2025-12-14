@@ -10,6 +10,7 @@ import select
 import subprocess
 import time
 import traceback
+from pathlib import Path
 
 import pandas as pd
 import psutil
@@ -108,10 +109,12 @@ def _validate_pcap_file(capture: str) -> None:
     if not capture:
         raise InvalidPcapError("Capture path cannot be empty")
 
-    if not os.path.exists(capture):
+    capture_path = Path(capture)
+
+    if not capture_path.exists():
         raise InvalidPcapError(f"Capture file not found: {capture}")
 
-    if not os.path.isfile(capture):
+    if not capture_path.is_file():
         raise InvalidPcapError(f"Path is not a file: {capture}")
 
     # Check file is readable
@@ -120,7 +123,7 @@ def _validate_pcap_file(capture: str) -> None:
 
     # Basic file size check (capture files have headers, so > 24 bytes minimum)
     try:
-        file_size = os.path.getsize(capture)
+        file_size = capture_path.stat().st_size
         if file_size < 24:
             raise InvalidPcapError(
                 f"Capture file too small ({file_size} bytes), may be corrupted: {capture}"
@@ -403,7 +406,7 @@ def process_tshark_output(
                 logger.debug(f"Raw line {line_count}: {line[:200]}...")
 
             try:
-                frame, stream, ip_src, ip_dst, sesid, field_dict = extract_fields(
+                _frame, stream, ip_src, ip_dst, sesid, field_dict = extract_fields(
                     line, fields
                 )
                 corrected_frame = line_count
@@ -679,7 +682,7 @@ def validate_pcap_file(capture_path: str) -> bool:
     """
     logger.info(f"Validating PCAP: {capture_path}")
 
-    if not os.path.exists(capture_path):
+    if not Path(capture_path).exists():
         logger.critical(f"PCAP file not found: {capture_path}")
         return False
 
@@ -689,8 +692,7 @@ def validate_pcap_file(capture_path: str) -> bool:
         result = subprocess.run(
             validate_cmd,
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
         )
         logger.debug(f"PCAP validation stdout: {result.stdout}")
@@ -731,31 +733,30 @@ def create_session_directory(
         safe_trace_name = _sanitize_path_component(trace_name.split(".")[0])
 
         # Use session_output_dir for writing processed data (writable location)
-        session_output = get_session_output_dir()
-        base_dir = os.path.join(session_output, safe_case_number)
-        tracer_dir = os.path.join(base_dir, ".tracer")
-        pcap_dir = os.path.join(tracer_dir, safe_trace_name)
-        output_dir = os.path.join(pcap_dir, "sessions")
+        session_output = Path(get_session_output_dir())
+        output_path = (
+            session_output / safe_case_number / ".tracer" / safe_trace_name / "sessions"
+        )
 
         # Validate the constructed path is within session_output (defense in depth)
-        _validate_path_within_base(output_dir, session_output)
+        _validate_path_within_base(str(output_path), str(session_output))
 
         # Create directory structure
-        os.makedirs(output_dir, exist_ok=True)
-        logger.info(f"Created directory: {output_dir}")
+        output_path.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Created directory: {output_path}")
 
         if force_reingest:
-            clear_directory(output_dir)
-            logger.info(f"Cleared {output_dir} due to force_reingest")
+            clear_directory(str(output_path))
+            logger.info(f"Cleared {output_path} due to force_reingest")
 
         # Verify directory exists and is writable
-        if not os.path.exists(output_dir):
-            raise RuntimeError(f"Directory {output_dir} does not exist after creation")
-        if not os.access(output_dir, os.W_OK):
-            raise RuntimeError(f"Directory {output_dir} is not writable")
+        if not output_path.exists():
+            raise RuntimeError(f"Directory {output_path} does not exist after creation")
+        if not os.access(output_path, os.W_OK):
+            raise RuntimeError(f"Directory {output_path} is not writable")
 
-        logger.info(f"Verified {output_dir} exists and is writable")
-        return output_dir
+        logger.info(f"Verified {output_path} exists and is writable")
+        return str(output_path)
 
     except Exception as e:
         logger.critical(
@@ -764,7 +765,7 @@ def create_session_directory(
         raise
 
 
-def clear_directory(directory: str, base_dir: str = None):
+def clear_directory(directory: str, base_dir: str | None = None) -> None:
     """Clear all files in a directory.
 
     Args:
@@ -779,12 +780,14 @@ def clear_directory(directory: str, base_dir: str = None):
     logger.info(f"Clearing directory: {directory}")
 
     try:
-        if not os.path.exists(directory):
+        dir_path = Path(directory)
+
+        if not dir_path.exists():
             logger.warning(f"Directory {directory} does not exist, nothing to clear")
             return
 
         # Security: Reject symlinks to prevent following to unintended locations
-        if os.path.islink(directory):
+        if dir_path.is_symlink():
             raise ValueError(f"Refusing to clear symlink directory: {directory}")
 
         # Security: Validate directory is within expected base (if provided)
@@ -797,21 +800,19 @@ def clear_directory(directory: str, base_dir: str = None):
             session_output = get_session_output_dir()
             _validate_path_within_base(directory, session_output)
 
-        import glob
         import shutil
 
-        files_to_remove = glob.glob(os.path.join(directory, "*"))
-        for file_path in files_to_remove:
+        for file_path in dir_path.glob("*"):
             try:
                 # Skip symlinks for safety
-                if os.path.islink(file_path):
+                if file_path.is_symlink():
                     logger.warning(f"Skipping symlink: {file_path}")
                     continue
 
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
+                if file_path.is_file():
+                    file_path.unlink()
                     logger.debug(f"Removed file: {file_path}")
-                elif os.path.isdir(file_path):
+                elif file_path.is_dir():
                     shutil.rmtree(file_path)
                     logger.debug(f"Removed directory: {file_path}")
             except Exception as e:

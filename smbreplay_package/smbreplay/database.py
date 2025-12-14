@@ -90,7 +90,7 @@ def _make_json_serializable(data: Any) -> Any:
     """
     if isinstance(data, dict):
         return {k: _make_json_serializable(v) for k, v in data.items()}
-    elif isinstance(data, list) or isinstance(data, set):
+    elif isinstance(data, (list, set)):
         return [_make_json_serializable(v) for v in data]
     elif isinstance(data, (np.integer,)):
         return int(data)
@@ -364,44 +364,43 @@ class DatabaseClient:
         frame_count = len(frames_df)
         memory_mb = frames_df.memory_usage(deep=True).sum() / 1024**2
 
-        async with self.connect() as conn:
-            async with conn.cursor() as cur:
-                query = sql.SQL(
-                    """
-                    INSERT INTO "Session"
-                        ("traceId", "sessionId", "frameCount",
-                         "uniqueCommands", "memoryMb", "framesData")
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    ON CONFLICT ("traceId", "sessionId")
-                    DO UPDATE SET
-                        "frameCount" = EXCLUDED."frameCount",
-                        "uniqueCommands" = EXCLUDED."uniqueCommands",
-                        "memoryMb" = EXCLUDED."memoryMb",
-                        "framesData" = EXCLUDED."framesData",
-                        "updatedAt" = NOW()
-                    RETURNING id
-                    """
-                )
+        async with self.connect() as conn, conn.cursor() as cur:
+            query = sql.SQL(
+                """
+                INSERT INTO "Session"
+                    ("traceId", "sessionId", "frameCount",
+                     "uniqueCommands", "memoryMb", "framesData")
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT ("traceId", "sessionId")
+                DO UPDATE SET
+                    "frameCount" = EXCLUDED."frameCount",
+                    "uniqueCommands" = EXCLUDED."uniqueCommands",
+                    "memoryMb" = EXCLUDED."memoryMb",
+                    "framesData" = EXCLUDED."framesData",
+                    "updatedAt" = NOW()
+                RETURNING id
+                """
+            )
 
-                await cur.execute(
-                    query,
-                    (
-                        trace_id,
-                        session_id,
-                        frame_count,
-                        unique_commands,
-                        memory_mb,
-                        json.dumps(frames_data),
-                    ),
-                )
-                result = await cur.fetchone()
-                db_session_id = result["id"]
+            await cur.execute(
+                query,
+                (
+                    trace_id,
+                    session_id,
+                    frame_count,
+                    unique_commands,
+                    memory_mb,
+                    json.dumps(frames_data),
+                ),
+            )
+            result = await cur.fetchone()
+            db_session_id = result["id"]
 
-                await conn.commit()
-                logger.info(
-                    f"Created session {session_id} ({frame_count} frames, {memory_mb:.2f}MB)"
-                )
-                return db_session_id
+            await conn.commit()
+            logger.info(
+                f"Created session {session_id} ({frame_count} frames, {memory_mb:.2f}MB)"
+            )
+            return db_session_id
 
     async def get_trace_by_path(
         self, case_number: str, trace_name: str

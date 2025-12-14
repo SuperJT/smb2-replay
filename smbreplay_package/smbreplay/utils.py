@@ -3,6 +3,7 @@ import mimetypes
 import os
 import re
 import time
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -107,7 +108,7 @@ def ensure_directory_exists(path: str) -> bool:
         True if directory exists or was created successfully
     """
     try:
-        os.makedirs(path, exist_ok=True)
+        Path(path).mkdir(parents=True, exist_ok=True)
         return True
     except Exception:
         return False
@@ -134,10 +135,11 @@ def get_file_info(file_path: str) -> dict[str, Any]:
     }
 
     try:
-        if os.path.exists(file_path):
+        path = Path(file_path)
+        if path.exists():
             info["exists"] = True
 
-            stat = os.stat(file_path)
+            stat = path.stat()
             info["size"] = stat.st_size
             info["modified_time"] = stat.st_mtime
             info["created_time"] = stat.st_ctime

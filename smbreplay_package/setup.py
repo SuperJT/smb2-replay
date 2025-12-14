@@ -4,19 +4,20 @@ Setup script for SMB2 Replay System
 """
 
 import os
+from pathlib import Path
 
 from setuptools import find_packages, setup
 
 
 # Read the README file
-def read_readme():
-    with open("README.md", encoding="utf-8") as fh:
+def read_readme() -> str:
+    with Path("README.md").open(encoding="utf-8") as fh:
         return fh.read()
 
 
 # Read requirements
-def read_requirements(filename):
-    with open(filename, encoding="utf-8") as fh:
+def read_requirements(filename: str) -> list[str]:
+    with Path(filename).open(encoding="utf-8") as fh:
         return [
             line.strip() for line in fh if line.strip() and not line.startswith("#")
         ]

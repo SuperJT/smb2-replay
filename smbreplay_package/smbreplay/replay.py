@@ -1,11 +1,3 @@
-from smbreplay.handlers.close import handle_close as close_handler
-from smbreplay.handlers.lease_break import handle_lease_break
-from smbreplay.handlers.lock import handle_lock as lock_handler
-from smbreplay.handlers.read import handle_read as read_handler
-from smbreplay.handlers.tree_connect import handle_tree_connect
-from smbreplay.handlers.write import handle_write as write_handler
-from smbreplay.utils import get_share_relative_path
-
 """
 SMB2 Replay Module.
 Handles SMB2 session replay using smbprotocol library.
@@ -23,6 +15,14 @@ from smbprotocol.exceptions import SMBException
 from smbprotocol.open import Open
 from smbprotocol.session import Session
 from smbprotocol.tree import TreeConnect
+
+from smbreplay.handlers.close import handle_close as close_handler
+from smbreplay.handlers.lease_break import handle_lease_break
+from smbreplay.handlers.lock import handle_lock as lock_handler
+from smbreplay.handlers.read import handle_read as read_handler
+from smbreplay.handlers.tree_connect import handle_tree_connect
+from smbreplay.handlers.write import handle_write as write_handler
+from smbreplay.utils import get_share_relative_path
 
 from .config import get_config, get_logger
 from .constants import SMB2_OP_NAME_DESC
@@ -1033,20 +1033,6 @@ class SMB2Replayer:
                 "failed_operations": len(selected_operations),
             }
 
-        except Exception as e:
-            error_msg = f"Replay failed: {e}"
-            logger.critical(error_msg)
-            if status_callback:
-                status_callback(error_msg)
-
-            return {
-                "success": False,
-                "error": str(e),
-                "total_operations": len(selected_operations),
-                "successful_operations": 0,
-                "failed_operations": len(selected_operations),
-            }
-
     @property
     def command_handlers(self):
         """Get command handlers for SMB2 operations."""
@@ -1167,7 +1153,7 @@ class SMB2Replayer:
     def get_supported_commands(self) -> dict[int, str]:
         return {
             cmd: SMB2_OP_NAME_DESC.get(cmd, ("Unknown",))[0]
-            for cmd in self.command_handlers.keys()
+            for cmd in self.command_handlers
         }
 
     def reset_state(self):
