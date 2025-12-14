@@ -608,15 +608,16 @@ class SessionManager:
         def get_op_name(x):
             if x and pd.notna(x):
                 try:
-                    # Handle set values from normalize_cmd_vectorized in ingestion.py
-                    if isinstance(x, set):
+                    # Handle set/list values from normalize_cmd_vectorized in ingestion.py
+                    # Note: Parquet serializes sets to lists, so we need to handle both
+                    if isinstance(x, (set, list)):
                         if x:
-                            # Take first command from set and translate it
-                            first_cmd = next(iter(x))
-                            normalized = str(int(first_cmd.strip()))
+                            # Take first command from collection and translate it
+                            first_cmd = x[0] if isinstance(x, list) else next(iter(x))
+                            normalized = str(int(str(first_cmd).strip()))
                             result = cmd_mapping.get(normalized, f"UNKNOWN({first_cmd})")
                             logger.debug(
-                                f"Command translation (set): {x} -> {normalized} -> {result}"
+                                f"Command translation (collection): {x} -> {normalized} -> {result}"
                             )
                             return result
                         return "UNKNOWN"
@@ -863,25 +864,40 @@ class SessionManager:
             # Get command name using the same logic as vectorized method
             try:
                 if cmd and pd.notna(cmd):
-                    # Clean the command string first
-                    cmd_cleaned = (
-                        str(cmd)
-                        .split(",")[0]
-                        .strip()
-                        .replace("{", "")
-                        .replace("}", "")
-                        .replace("'", "")
-                    )
-                    # Parse as integer directly, avoiding masked float conversion
-                    # Handle hex strings (0x...) and decimal strings
-                    if cmd_cleaned.startswith("0x"):
-                        cmd_int = int(cmd_cleaned, 16)
-                    elif "." in cmd_cleaned:
-                        # Only use float conversion if there's a decimal point
-                        cmd_int = int(float(cmd_cleaned))
+                    # Handle list/set values from Parquet (sets are serialized as lists)
+                    if isinstance(cmd, (list, set)):
+                        if cmd:
+                            first_cmd = cmd[0] if isinstance(cmd, list) else next(iter(cmd))
+                            cmd_int = int(str(first_cmd).strip())
+                            op_name = SMB2_OP_NAME_DESC.get(
+                                cmd_int, (f"UNKNOWN({first_cmd})", "")
+                            )[0]
+                        else:
+                            op_name = "UNKNOWN"
                     else:
-                        cmd_int = int(cmd_cleaned)
-                    op_name = SMB2_OP_NAME_DESC.get(cmd_int, (f"UNKNOWN({cmd})", ""))[0]
+                        # Clean the command string first
+                        cmd_cleaned = (
+                            str(cmd)
+                            .split(",")[0]
+                            .strip()
+                            .replace("{", "")
+                            .replace("}", "")
+                            .replace("[", "")
+                            .replace("]", "")
+                            .replace("'", "")
+                        )
+                        # Parse as integer directly, avoiding masked float conversion
+                        # Handle hex strings (0x...) and decimal strings
+                        if cmd_cleaned.startswith("0x"):
+                            cmd_int = int(cmd_cleaned, 16)
+                        elif "." in cmd_cleaned:
+                            # Only use float conversion if there's a decimal point
+                            cmd_int = int(float(cmd_cleaned))
+                        else:
+                            cmd_int = int(cmd_cleaned)
+                        op_name = SMB2_OP_NAME_DESC.get(
+                            cmd_int, (f"UNKNOWN({cmd})", "")
+                        )[0]
                 else:
                     op_name = "UNKNOWN"
             except (ValueError, TypeError) as e:
