@@ -341,42 +341,44 @@ class DatabaseClient:
         self,
         trace_id: str,
         session_id: str,
-        frames_df: pd.DataFrame,
+        frame_count: int,
         unique_commands: int = 0,
+        memory_mb: float = 0.0,
+        frames_object_key: str | None = None,
+        frames_size_bytes: int | None = None,
     ) -> str:
-        """Create a session record with frame data.
+        """Create a session record with S3 object reference.
+
+        Frame data is stored in S3, not in the database. This method stores
+        only metadata and the S3 object key for later retrieval.
 
         Args:
             trace_id: Parent trace ID
             session_id: SMB2 session ID (hex format)
-            frames_df: DataFrame containing frame data
+            frame_count: Number of frames in session
             unique_commands: Number of unique commands in session
+            memory_mb: Memory usage in MB
+            frames_object_key: S3 object key for frame data
+            frames_size_bytes: Size of Parquet file in bytes
 
         Returns:
             Session database ID (UUID)
         """
-        # Convert DataFrame to JSON-serializable format
-        # Uses _make_json_serializable to handle sets from normalize_sesid/normalize_cmd
-        # and numpy types that json.dumps cannot serialize directly
-        frames_data = _make_json_serializable(frames_df.to_dict(orient="records"))
-
-        # Calculate statistics
-        frame_count = len(frames_df)
-        memory_mb = frames_df.memory_usage(deep=True).sum() / 1024**2
-
         async with self.connect() as conn, conn.cursor() as cur:
             query = sql.SQL(
                 """
                 INSERT INTO "Session"
                     ("traceId", "sessionId", "frameCount",
-                     "uniqueCommands", "memoryMb", "framesData")
-                VALUES (%s, %s, %s, %s, %s, %s)
+                     "uniqueCommands", "memoryMb",
+                     "framesObjectKey", "framesSizeBytes")
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT ("traceId", "sessionId")
                 DO UPDATE SET
                     "frameCount" = EXCLUDED."frameCount",
                     "uniqueCommands" = EXCLUDED."uniqueCommands",
                     "memoryMb" = EXCLUDED."memoryMb",
-                    "framesData" = EXCLUDED."framesData",
+                    "framesObjectKey" = EXCLUDED."framesObjectKey",
+                    "framesSizeBytes" = EXCLUDED."framesSizeBytes",
                     "updatedAt" = NOW()
                 RETURNING id
                 """
@@ -390,7 +392,8 @@ class DatabaseClient:
                     frame_count,
                     unique_commands,
                     memory_mb,
-                    json.dumps(frames_data),
+                    frames_object_key,
+                    frames_size_bytes,
                 ),
             )
             result = await cur.fetchone()
@@ -398,7 +401,8 @@ class DatabaseClient:
 
             await conn.commit()
             logger.info(
-                f"Created session {session_id} ({frame_count} frames, {memory_mb:.2f}MB)"
+                f"Created session {session_id} ({frame_count} frames, "
+                f"key={frames_object_key})"
             )
             return db_session_id
 
@@ -450,22 +454,22 @@ class DatabaseClient:
             results = await cur.fetchall()
             return results
 
-    async def get_session_frames(
+    async def get_session_object_key(
         self, trace_id: str, session_id: str
-    ) -> pd.DataFrame | None:
-        """Get frame data for a specific session.
+    ) -> str | None:
+        """Get S3 object key for a session's frames.
 
         Args:
             trace_id: Trace ID
             session_id: SMB2 session ID
 
         Returns:
-            DataFrame containing frame data or None if not found
+            S3 object key or None if not found
         """
         async with self.connect() as conn, conn.cursor() as cur:
             query = sql.SQL(
                 """
-                    SELECT "framesData" FROM "Session"
+                    SELECT "framesObjectKey" FROM "Session"
                     WHERE "traceId" = %s AND "sessionId" = %s
                     """
             )
@@ -474,10 +478,36 @@ class DatabaseClient:
             result = await cur.fetchone()
 
             if result:
-                frames_data = result["framesData"]
-                df = pd.DataFrame(frames_data)
-                logger.info(f"Retrieved {len(df)} frames for session {session_id}")
-                return df
+                return result["framesObjectKey"]
+            return None
+
+    async def delete_session(self, trace_id: str, session_id: str) -> str | None:
+        """Delete a session and return its S3 object key for cleanup.
+
+        Args:
+            trace_id: Trace ID
+            session_id: Session ID
+
+        Returns:
+            S3 object key that should be deleted, or None
+        """
+        async with self.connect() as conn, conn.cursor() as cur:
+            # Get object key before deleting
+            query = sql.SQL(
+                """
+                DELETE FROM "Session"
+                WHERE "traceId" = %s AND "sessionId" = %s
+                RETURNING "framesObjectKey"
+                """
+            )
+
+            await cur.execute(query, (trace_id, session_id))
+            result = await cur.fetchone()
+            await conn.commit()
+
+            if result:
+                logger.info(f"Deleted session {session_id}")
+                return result["framesObjectKey"]
             return None
 
 

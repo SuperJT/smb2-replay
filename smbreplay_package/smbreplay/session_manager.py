@@ -202,7 +202,8 @@ class SessionManager:
                 session_files = [
                     f.name
                     for f in output_dir_path.iterdir()
-                    if f.name.startswith("smb2_session_") and f.name.endswith(".parquet")
+                    if f.name.startswith("smb2_session_")
+                    and f.name.endswith(".parquet")
                 ]
 
                 logger.info(f"Found {len(session_files)} session files in {output_dir}")
@@ -215,7 +216,10 @@ class SessionManager:
     async def _load_session_from_database(
         self, case_number: str, trace_name: str, session_id: str
     ) -> pd.DataFrame | None:
-        """Load session frames from PostgreSQL database.
+        """Load session frames from S3 via database metadata.
+
+        Frame data is stored in S3, with metadata (including the S3 object key)
+        stored in PostgreSQL.
 
         Args:
             case_number: Case number
@@ -226,6 +230,8 @@ class SessionManager:
             DataFrame with session frames or None if not found
         """
         try:
+            from .frame_storage import FrameStorageError, get_frame_storage
+
             db = get_database_client()
 
             # Get trace record
@@ -236,12 +242,23 @@ class SessionManager:
                 )
                 return None
 
-            # Get session frames
-            df = await db.get_session_frames(trace["id"], session_id)
+            # Get S3 object key from database
+            object_key = await db.get_session_object_key(trace["id"], session_id)
+            if not object_key:
+                logger.warning(f"No S3 object key found for session {session_id}")
+                return None
+
+            # Fetch frames from S3
+            frame_storage = get_frame_storage()
+            df = frame_storage.get_frames(object_key)
+            logger.info(f"Retrieved {len(df)} frames for session {session_id} from S3")
             return df
 
+        except FrameStorageError as e:
+            logger.warning(f"Error loading session from S3: {e.message} ({e.code})")
+            return None
         except Exception as e:
-            logger.debug(f"Error loading session from database: {e}")
+            logger.debug(f"Error loading session from database/S3: {e}")
             return None
 
     def load_session_by_file(self, session_file: str, output_dir: str) -> bool:

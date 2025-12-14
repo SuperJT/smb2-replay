@@ -323,7 +323,10 @@ async def save_sessions_to_database(
     sessions: dict[str, pd.DataFrame],
     status_callback: Callable | None = None,
 ) -> None:
-    """Save trace and session data to PostgreSQL database.
+    """Save trace and session data to PostgreSQL + S3.
+
+    Frame data is stored in S3 as Parquet files.
+    Metadata and S3 object keys are stored in PostgreSQL.
 
     Args:
         case_number: Case number
@@ -334,12 +337,17 @@ async def save_sessions_to_database(
         sessions: Dictionary of session DataFrames
         status_callback: Optional callback for status updates
     """
+    from .frame_storage import get_frame_storage
+
     logger.info(
-        f"Saving {len(sessions)} sessions to database for {case_number}/{trace_name}"
+        f"Saving {len(sessions)} sessions to database+S3 for {case_number}/{trace_name}"
     )
+
+    uploaded_keys: list[str] = []  # Track uploaded S3 objects for cleanup on failure
 
     try:
         db = get_database_client()
+        frame_storage = get_frame_storage()
 
         # Create or update trace record
         trace_id = await db.create_or_update_trace(
@@ -354,7 +362,7 @@ async def save_sessions_to_database(
 
         logger.info(f"Created/updated trace {trace_id} in database")
         if status_callback:
-            status_callback(f"Saving {len(sessions)} sessions to database...")
+            status_callback(f"Saving {len(sessions)} sessions to S3...")
 
         # Save individual sessions
         for i, (sesid, session_df) in enumerate(sessions.items(), 1):
@@ -366,27 +374,55 @@ async def save_sessions_to_database(
                 except (TypeError, ValueError):
                     unique_commands = 0
 
+            # Upload frames to S3
+            object_key, size_bytes = frame_storage.save_frames(
+                case_id=case_number,
+                trace_name=trace_name,
+                session_id=sesid,
+                frames_df=session_df,
+            )
+            uploaded_keys.append(object_key)
+
+            # Calculate memory usage
+            frame_count = len(session_df)
+            memory_mb = session_df.memory_usage(deep=True).sum() / 1024**2
+
+            # Store metadata in database (no frame data)
             await db.create_session(
                 trace_id=trace_id,
                 session_id=sesid,
-                frames_df=session_df,
+                frame_count=frame_count,
                 unique_commands=unique_commands,
+                memory_mb=memory_mb,
+                frames_object_key=object_key,
+                frames_size_bytes=size_bytes,
             )
 
             if i % 10 == 0 or i == len(sessions):
-                logger.info(f"Saved {i}/{len(sessions)} sessions to database")
+                logger.info(f"Saved {i}/{len(sessions)} sessions to S3+database")
                 if status_callback:
-                    status_callback(f"Saved {i}/{len(sessions)} sessions to database")
+                    status_callback(f"Saved {i}/{len(sessions)} sessions")
 
         # Mark trace as completed
         await db.update_trace_status(
             trace_id=trace_id, status="COMPLETED", ingested_at=datetime.now()
         )
 
-        logger.info(f"Successfully saved all {len(sessions)} sessions to database")
+        logger.info(f"Successfully saved all {len(sessions)} sessions to S3+database")
 
     except Exception as e:
-        logger.error(f"Error saving to database: {e!s}\n{traceback.format_exc()}")
+        logger.error(f"Error saving to database/S3: {e!s}\n{traceback.format_exc()}")
+
+        # Cleanup: try to delete any uploaded S3 objects on failure
+        if uploaded_keys:
+            logger.info(f"Cleaning up {len(uploaded_keys)} uploaded S3 objects...")
+            try:
+                frame_storage = get_frame_storage()
+                for key in uploaded_keys:
+                    frame_storage.delete_frames(key)
+            except Exception as cleanup_e:
+                logger.error(f"Failed to cleanup S3 objects: {cleanup_e}")
+
         # Try to mark trace as failed
         try:
             if "trace_id" in locals():
