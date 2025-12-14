@@ -377,6 +377,9 @@ class SessionManager:
     def load_and_summarize_session(self, capture_path: str, session_file: str) -> tuple:
         """Load a session file and return field options and file options.
 
+        Uses database-aware load_session_by_file which tries PostgreSQL first,
+        then falls back to Parquet files.
+
         Args:
             capture_path: Path to the capture file
             session_file: Name of the session file
@@ -391,28 +394,9 @@ class SessionManager:
             logger.warning("Invalid output directory")
             return None, [], [], []
 
-        session_path = os.path.join(output_dir, session_file)
-        if not os.path.exists(session_path):
-            logger.warning(f"Session file not found: {session_path}")
-            return None, [], [], []
-
-        try:
-            # Load with optimized settings
-            table = pq.read_table(session_path)
-            self.session_frames = table.to_pandas()
-
-            # Optimize DataFrame dtypes for better performance
-            self.session_frames = self._optimize_session_dtypes(self.session_frames)
-
-            logger.info(
-                f"Loaded session {session_file} with {len(self.session_frames)} frames"
-            )
-            logger.info(
-                f"Session memory usage: {self.session_frames.memory_usage(deep=True).sum() / 1024**2:.2f} MB"
-            )
-
-        except Exception as e:
-            logger.error(f"Error loading session file: {e}")
+        # Use database-aware loading (tries DB first, falls back to Parquet)
+        if not self.load_session_by_file(session_file, output_dir):
+            logger.warning(f"Failed to load session: {session_file}")
             return None, [], [], []
 
         if self.session_frames.empty:
