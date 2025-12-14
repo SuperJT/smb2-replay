@@ -93,48 +93,40 @@ class InvalidPcapError(ValueError):
     pass
 
 
-# Valid PCAP file extensions
-VALID_PCAP_EXTENSIONS = {".pcap", ".pcapng", ".cap", ".dmp"}
-
-
 def _validate_pcap_file(capture: str) -> None:
-    """Validate that the capture file exists and has a valid extension.
+    """Validate that the capture file exists and is readable.
+
+    Note: We delegate format validation to tshark, which uses libwiretap
+    to identify 100+ capture formats by magic bytes rather than extension.
 
     Args:
-        capture: Path to the PCAP file
+        capture: Path to the capture file
 
     Raises:
-        InvalidPcapError: If the file doesn't exist or has invalid extension
+        InvalidPcapError: If the file doesn't exist or isn't readable
     """
     if not capture:
         raise InvalidPcapError("Capture path cannot be empty")
 
     if not os.path.exists(capture):
-        raise InvalidPcapError(f"PCAP file not found: {capture}")
+        raise InvalidPcapError(f"Capture file not found: {capture}")
 
     if not os.path.isfile(capture):
         raise InvalidPcapError(f"Path is not a file: {capture}")
 
-    # Check file extension
-    _, ext = os.path.splitext(capture.lower())
-    if ext not in VALID_PCAP_EXTENSIONS:
-        raise InvalidPcapError(
-            f"Invalid file extension '{ext}'. Expected one of: {', '.join(VALID_PCAP_EXTENSIONS)}"
-        )
-
     # Check file is readable
     if not os.access(capture, os.R_OK):
-        raise InvalidPcapError(f"PCAP file is not readable: {capture}")
+        raise InvalidPcapError(f"Capture file is not readable: {capture}")
 
-    # Basic file size check (PCAP files have headers, so > 24 bytes minimum)
+    # Basic file size check (capture files have headers, so > 24 bytes minimum)
     try:
         file_size = os.path.getsize(capture)
         if file_size < 24:
             raise InvalidPcapError(
-                f"PCAP file too small ({file_size} bytes), may be corrupted: {capture}"
+                f"Capture file too small ({file_size} bytes), may be corrupted: {capture}"
             )
     except OSError as e:
-        raise InvalidPcapError(f"Cannot read PCAP file size: {e}") from e
+        raise InvalidPcapError(f"Cannot read capture file size: {e}") from e
 
 
 def build_tshark_command(
