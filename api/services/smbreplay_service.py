@@ -298,6 +298,77 @@ class SMBReplayService:
                 "error": "Ingestion failed",
             }
 
+    async def ingest_pcap_async(
+        self,
+        path: str,
+        force: bool = False,
+        reassembly: bool = False,
+        case_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Ingest a PCAP file asynchronously.
+
+        This async version avoids event loop conflicts by using 'await' for
+        database operations instead of asyncio.run(). Use this from FastAPI
+        async endpoints to share the framework's event loop.
+
+        Args:
+            path: Path to PCAP file.
+            force: Force re-ingestion.
+            reassembly: Enable TCP reassembly.
+            case_id: Optional case ID for relative paths.
+
+        Returns:
+            Ingestion result dict.
+        """
+        # Resolve path if relative
+        if not os.path.isabs(path):
+            if case_id:
+                self.system.config.set_case_id(case_id)
+            traces_folder = self.system.config.get_traces_folder()
+            effective_case_id = case_id or self.system.config.get_case_id()
+            if effective_case_id:
+                path = os.path.join(traces_folder, effective_case_id, path)
+
+        # Security: Validate path doesn't escape allowed directories
+        traces_folder = self.system.config.get_traces_folder()
+        real_path = os.path.realpath(path)
+        real_traces = os.path.realpath(traces_folder)
+        if not real_path.startswith(real_traces + os.sep) and real_path != real_traces:
+            raise SMBReplayServiceError(
+                "Path traversal detected: path must be within traces folder",
+                code="PATH_TRAVERSAL",
+            )
+
+        # Use async version to avoid event loop conflicts
+        result = await self.system.ingest_pcap_async(
+            path, force_reingest=force, reassembly=reassembly
+        )
+
+        if result:
+            # sessions is a dict of {session_id: DataFrame}, extract keys as list
+            sessions_dict = result.get("sessions", {})
+            session_ids = (
+                list(sessions_dict.keys()) if isinstance(sessions_dict, dict) else []
+            )
+
+            # Extract performance metrics from nested 'performance' dict
+            performance = result.get("performance", {})
+
+            return {
+                "success": True,
+                "sessions": session_ids,
+                "session_count": len(session_ids),
+                "total_frames": performance.get("packets_processed"),
+                "processing_time": performance.get("processing_time"),
+            }
+        else:
+            return {
+                "success": False,
+                "sessions": [],
+                "session_count": 0,
+                "error": "Ingestion failed",
+            }
+
     # =========================================================================
     # Sessions
     # =========================================================================

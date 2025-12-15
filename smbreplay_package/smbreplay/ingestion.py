@@ -533,6 +533,45 @@ def run_ingestion(
 ) -> dict[str, Any] | None:
     """Orchestrate PCAP ingestion and session extraction with performance optimizations.
 
+    This is the synchronous version for CLI use. It creates a new event loop
+    via asyncio.run() to execute the async implementation.
+
+    For API/service use where an event loop already exists, use run_ingestion_async()
+    to avoid event loop conflicts with the database connection pool.
+
+    Args:
+        capture_path: Path to PCAP file
+        reassembly_enabled: Enable TCP reassembly
+        force_reingest: Force re-ingestion
+        verbose: Enable verbose logging
+        status_callback: Optional callback for status updates
+
+    Returns:
+        Dictionary with full DataFrame and sessions, or None if failed
+    """
+    return asyncio.run(
+        run_ingestion_async(
+            capture_path=capture_path,
+            reassembly_enabled=reassembly_enabled,
+            force_reingest=force_reingest,
+            verbose=verbose,
+            status_callback=status_callback,
+        )
+    )
+
+
+async def run_ingestion_async(
+    capture_path: str | None = None,
+    reassembly_enabled: bool = False,
+    force_reingest: bool = False,
+    verbose: bool = False,
+    status_callback: Callable | None = None,
+) -> dict[str, Any] | None:
+    """Async version of PCAP ingestion for use in async contexts (FastAPI, etc.).
+
+    This version uses 'await' for database operations instead of asyncio.run(),
+    avoiding event loop conflicts when called from an existing async context.
+
     Args:
         capture_path: Path to PCAP file
         reassembly_enabled: Enable TCP reassembly
@@ -734,16 +773,14 @@ def run_ingestion(
                 status_callback("Saving sessions to database...")
 
                 try:
-                    asyncio.run(
-                        save_sessions_to_database(
-                            case_number=case_number,
-                            trace_name=trace_name,
-                            capture_path=capture_path,
-                            packet_count=packet_count,
-                            file_size=Path(capture_path).stat().st_size,
-                            sessions=sessions,
-                            status_callback=status_callback,
-                        )
+                    await save_sessions_to_database(
+                        case_number=case_number,
+                        trace_name=trace_name,
+                        capture_path=capture_path,
+                        packet_count=packet_count,
+                        file_size=Path(capture_path).stat().st_size,
+                        sessions=sessions,
+                        status_callback=status_callback,
                     )
                     logger.info("Successfully saved sessions to database")
                     status_callback("Successfully saved sessions to database")

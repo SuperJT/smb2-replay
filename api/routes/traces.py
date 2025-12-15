@@ -37,16 +37,18 @@ def list_traces(
 
 
 @router.post("/ingest", response_model=IngestResult)
-def ingest_trace(
+async def ingest_trace(
     request: IngestRequest,
     service: SMBReplayService = Depends(get_smbreplay_service),
 ) -> IngestResult:
     """Ingest a PCAP file.
 
     Processes the specified PCAP file using tshark to extract SMB2 sessions.
-    Each session is stored as a Parquet file for efficient querying.
+    Each session is stored in the database for efficient querying.
 
-    This is a synchronous operation that may take several minutes for large captures.
+    This endpoint is async to properly share FastAPI's event loop with the
+    database connection pool, avoiding the "couldn't get a connection after
+    30.00 sec" timeout error that occurs when creating new event loops.
 
     Args:
         request: Ingestion parameters including:
@@ -63,7 +65,8 @@ def ingest_trace(
                 error="System setup failed - tshark may not be available",
             )
 
-        result = service.ingest_pcap(
+        # Use async version to share FastAPI's event loop with database pool
+        result = await service.ingest_pcap_async(
             path=request.path,
             force=request.force,
             reassembly=request.reassembly,

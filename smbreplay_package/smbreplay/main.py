@@ -68,6 +68,13 @@ def _run_ingestion(**kwargs):
     return run_ingestion(**kwargs)
 
 
+async def _run_ingestion_async(**kwargs):
+    """Async version of ingestion for use in async contexts (API endpoints)."""
+    from .ingestion import run_ingestion_async
+
+    return await run_ingestion_async(**kwargs)
+
+
 def _validate_ingested_data(data):
     from .ingestion import validate_ingested_data
 
@@ -189,6 +196,58 @@ class SMB2ReplaySystem:
 
         # Run ingestion
         result = _run_ingestion(
+            capture_path=pcap_path,
+            reassembly_enabled=reassembly,
+            force_reingest=force_reingest,
+            verbose=verbose,
+            status_callback=status_callback,
+        )
+
+        if result and _validate_ingested_data(result):
+            _get_logger().info("PCAP ingestion completed successfully")
+            return result
+        else:
+            _get_logger().error("PCAP ingestion failed")
+            return None
+
+    async def ingest_pcap_async(
+        self,
+        pcap_path: str,
+        force_reingest: bool = False,
+        reassembly: bool = False,
+        verbose: bool = False,
+    ) -> dict[str, Any] | None:
+        """Async version of PCAP ingestion for use in async contexts (API endpoints).
+
+        This version uses 'await' for database operations instead of
+        asyncio.run(), avoiding event loop conflicts when called from
+        FastAPI or other async frameworks.
+
+        Args:
+            pcap_path: Path to PCAP file
+            force_reingest: Force re-ingestion even if data exists
+            reassembly: Enable TCP reassembly
+            verbose: Enable verbose logging
+
+        Returns:
+            Dictionary with ingestion results or None if failed
+        """
+        _get_logger().info(f"Ingesting PCAP file (async): {pcap_path}")
+
+        # Validate PCAP file
+        if not _validate_pcap_file(pcap_path):
+            _get_logger().error(f"Invalid PCAP file: {pcap_path}")
+            return None
+
+        # Set capture path in config
+        self.config.set_capture_path(pcap_path)
+
+        # Status callback for progress updates
+        def status_callback(message: str):
+            _get_logger().info(f"Ingestion Status: {message}")
+
+        # Run async ingestion
+        result = await _run_ingestion_async(
             capture_path=pcap_path,
             reassembly_enabled=reassembly,
             force_reingest=force_reingest,
