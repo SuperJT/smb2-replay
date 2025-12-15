@@ -94,6 +94,25 @@ class MockSMB2ReplaySystem:
             },
         }
 
+    async def ingest_pcap_async(
+        self,
+        pcap_path: str,
+        force_reingest: bool = False,
+        reassembly: bool = False,
+        verbose: bool = False,
+    ) -> dict[str, Any] | None:
+        """Async version of ingest_pcap for use with FastAPI endpoints."""
+        if "invalid" in pcap_path:
+            return None
+        # Return format matches real _run_ingestion output
+        return {
+            "sessions": {"0x1234": None},  # Dict of session_id -> DataFrame
+            "performance": {
+                "processing_time": 2.5,
+                "packets_processed": 500,
+            },
+        }
+
     def validate_replay_readiness(
         self,
         operations: list[dict[str, Any]],

@@ -15,8 +15,10 @@ from smbreplay.tshark_processor import (
 )
 
 
-def test_build_tshark_command_basic():
+@patch("smbreplay.tshark_processor._validate_pcap_file")
+def test_build_tshark_command_basic(mock_validate):
     """Test basic tshark command construction."""
+    # Mock validation to pass (does nothing, no exception raised)
     capture = "/path/to/test.pcap"
     fields = ["frame.number", "smb2.cmd", "smb2.sesid"]
 
@@ -30,9 +32,11 @@ def test_build_tshark_command_basic():
     assert "-T" in cmd_args
     assert "fields" in cmd_args
     assert fields_used == fields
+    mock_validate.assert_called_once_with(capture)
 
 
-def test_build_tshark_command_with_reassembly():
+@patch("smbreplay.tshark_processor._validate_pcap_file")
+def test_build_tshark_command_with_reassembly(mock_validate):
     """Test tshark command with TCP reassembly enabled."""
     capture = "/path/to/test.pcap"
     fields = ["frame.number", "smb2.cmd"]
@@ -42,7 +46,8 @@ def test_build_tshark_command_with_reassembly():
     assert "-2" in cmd_args
 
 
-def test_build_tshark_command_with_packet_limit():
+@patch("smbreplay.tshark_processor._validate_pcap_file")
+def test_build_tshark_command_with_packet_limit(mock_validate):
     """Test tshark command with packet limit."""
     capture = "/path/to/test.pcap"
     fields = ["frame.number"]
@@ -53,7 +58,8 @@ def test_build_tshark_command_with_packet_limit():
     assert "1000" in cmd_args
 
 
-def test_build_tshark_command_with_verbose():
+@patch("smbreplay.tshark_processor._validate_pcap_file")
+def test_build_tshark_command_with_verbose(mock_validate):
     """Test tshark command with verbose output."""
     capture = "/path/to/test.pcap"
     fields = ["frame.number"]
@@ -169,10 +175,13 @@ def test_extract_fields_invalid_stream():
 
 
 @patch("subprocess.run")
-@patch("os.path.exists")
-def test_validate_pcap_file_exists(mock_exists, mock_run):
+@patch("smbreplay.tshark_processor.Path")
+def test_validate_pcap_file_exists(mock_path, mock_run):
     """Test PCAP file validation when file exists."""
-    mock_exists.return_value = True
+    mock_path_instance = MagicMock()
+    mock_path_instance.exists.return_value = True
+    mock_path.return_value = mock_path_instance
+
     mock_result = MagicMock()
     mock_result.returncode = 0
     mock_run.return_value = mock_result
@@ -180,13 +189,15 @@ def test_validate_pcap_file_exists(mock_exists, mock_run):
     result = validate_pcap_file("/path/to/test.pcap")
 
     assert result is True
-    mock_exists.assert_called_once_with("/path/to/test.pcap")
+    mock_path_instance.exists.assert_called_once()
 
 
-@patch("os.path.exists")
-def test_validate_pcap_file_not_exists(mock_exists):
+@patch("smbreplay.tshark_processor.Path")
+def test_validate_pcap_file_not_exists(mock_path):
     """Test PCAP file validation when file doesn't exist."""
-    mock_exists.return_value = False
+    mock_path_instance = MagicMock()
+    mock_path_instance.exists.return_value = False
+    mock_path.return_value = mock_path_instance
 
     result = validate_pcap_file("/path/to/nonexistent.pcap")
 
@@ -202,36 +213,55 @@ def test_create_session_directory_new():
 
 
 @patch("os.access")
-@patch("os.makedirs")
-@patch("os.path.exists")
-def test_create_session_directory_exists(mock_exists, mock_makedirs, mock_access):
+@patch("smbreplay.tshark_processor.Path")
+@patch("smbreplay.config.get_session_output_dir")
+def test_create_session_directory_exists(mock_get_output, mock_path_cls, mock_access):
     """Test creating session directory when it already exists."""
-    mock_exists.return_value = True
+    mock_get_output.return_value = "/tmp/sessions"
     mock_access.return_value = True
+
+    # Create a mock path that tracks mkdir calls
+    mock_path_instance = MagicMock()
+    mock_path_instance.exists.return_value = True
+    mock_path_instance.__truediv__ = MagicMock(return_value=mock_path_instance)
+    mock_path_instance.__str__ = MagicMock(
+        return_value="/tmp/sessions/test_case/.tracer/test_trace/sessions"
+    )
+    mock_path_cls.return_value = mock_path_instance
 
     result = create_session_directory("test_case", "test_trace")
 
     assert "test_case" in result
     assert "test_trace" in result
-    # The function always calls makedirs with exist_ok=True for safety
-    mock_makedirs.assert_called_once()
+    mock_path_instance.mkdir.assert_called_once_with(parents=True, exist_ok=True)
 
 
 @patch("os.access")
-@patch("os.makedirs")
-@patch("os.path.exists")
+@patch("smbreplay.tshark_processor.clear_directory")
+@patch("smbreplay.tshark_processor.Path")
+@patch("smbreplay.config.get_session_output_dir")
 def test_create_session_directory_force_reingest(
-    mock_exists, mock_makedirs, mock_access
+    mock_get_output, mock_path_cls, mock_clear, mock_access
 ):
     """Test creating session directory with force_reingest=True."""
-    mock_exists.return_value = True
+    mock_get_output.return_value = "/tmp/sessions"
     mock_access.return_value = True
+
+    # Create a mock path that tracks mkdir calls
+    mock_path_instance = MagicMock()
+    mock_path_instance.exists.return_value = True
+    mock_path_instance.__truediv__ = MagicMock(return_value=mock_path_instance)
+    mock_path_instance.__str__ = MagicMock(
+        return_value="/tmp/sessions/test_case/.tracer/test_trace/sessions"
+    )
+    mock_path_cls.return_value = mock_path_instance
 
     result = create_session_directory("test_case", "test_trace", force_reingest=True)
 
     assert "test_case" in result
     assert "test_trace" in result
-    mock_makedirs.assert_called_once()
+    mock_path_instance.mkdir.assert_called_once_with(parents=True, exist_ok=True)
+    mock_clear.assert_called_once()
 
 
 @pytest.mark.skip(reason="Complex mocking required for file system operations")

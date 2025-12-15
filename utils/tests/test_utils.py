@@ -1,6 +1,6 @@
 import json
 import time
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -139,37 +139,36 @@ def test_safe_json_serialize_series():
     assert "1" in result and "2" in result and "3" in result  # Check for values in JSON
 
 
-@patch("os.makedirs")
-@patch("os.path.exists")
-def test_ensure_directory_exists_new(mock_exists, mock_makedirs):
+@patch("smbreplay.utils.Path")
+def test_ensure_directory_exists_new(mock_path_cls):
     """Test ensure_directory_exists with new directory."""
-    mock_exists.return_value = False
+    mock_path_instance = MagicMock()
+    mock_path_cls.return_value = mock_path_instance
 
     result = ensure_directory_exists("/path/to/new/dir")
 
     assert result is True
-    mock_makedirs.assert_called_once_with("/path/to/new/dir", exist_ok=True)
+    mock_path_instance.mkdir.assert_called_once_with(parents=True, exist_ok=True)
 
 
-@patch("os.makedirs")
-@patch("os.path.exists")
-def test_ensure_directory_exists_existing(mock_exists, mock_makedirs):
+@patch("smbreplay.utils.Path")
+def test_ensure_directory_exists_existing(mock_path_cls):
     """Test ensure_directory_exists with existing directory."""
-    mock_exists.return_value = True
+    mock_path_instance = MagicMock()
+    mock_path_cls.return_value = mock_path_instance
 
     result = ensure_directory_exists("/path/to/existing/dir")
 
     assert result is True
-    # Function always calls makedirs with exist_ok=True
-    mock_makedirs.assert_called_once_with("/path/to/existing/dir", exist_ok=True)
+    mock_path_instance.mkdir.assert_called_once_with(parents=True, exist_ok=True)
 
 
-@patch("os.makedirs")
-@patch("os.path.exists")
-def test_ensure_directory_exists_error(mock_exists, mock_makedirs):
+@patch("smbreplay.utils.Path")
+def test_ensure_directory_exists_error(mock_path_cls):
     """Test ensure_directory_exists with error."""
-    mock_exists.return_value = False
-    mock_makedirs.side_effect = OSError("Permission denied")
+    mock_path_instance = MagicMock()
+    mock_path_instance.mkdir.side_effect = OSError("Permission denied")
+    mock_path_cls.return_value = mock_path_instance
 
     result = ensure_directory_exists("/path/to/dir")
 
