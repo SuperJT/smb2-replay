@@ -140,7 +140,7 @@ class DatabaseClient:
             connection_timeout: Timeout for acquiring connection from pool (default 30s)
             query_timeout: Timeout for query execution (default 60s)
         """
-        raw_conn_string = connection_string or os.getenv("DATABASE_URL", "")
+        raw_conn_string = connection_string or os.getenv("DATABASE_URL") or ""
 
         # Sanitize connection string to remove Prisma-specific params
         self.connection_string, self._schema = _sanitize_connection_string(
@@ -182,11 +182,13 @@ class DatabaseClient:
                 # This sets search_path on each new connection (Prisma compatibility)
                 configure = None
                 if self._schema:
+                    # Capture schema in local variable for closure
+                    schema = self._schema
 
                     async def configure(conn: Any) -> None:
                         await conn.execute(
                             sql.SQL("SET search_path TO {}").format(
-                                sql.Identifier(self._schema)
+                                sql.Identifier(schema)
                             )
                         )
 

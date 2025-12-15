@@ -165,29 +165,37 @@ class SessionManager:
                 # Extract case number and trace name from output_dir path
                 # Expected format: /.../case_number/.tracer/trace_name/sessions
                 parts = Path(output_dir).parts
-                if ".tracer" in parts:
-                    tracer_index = parts.index(".tracer")
-                    if tracer_index > 0 and tracer_index + 1 < len(parts):
-                        case_number = parts[tracer_index - 1]
-                        trace_name = parts[tracer_index + 1]
+                if ".tracer" not in parts:
+                    logger.warning(
+                        f"Cannot parse path (no .tracer component): {output_dir}"
+                    )
+                    return []
 
-                        logger.debug(
-                            f"Querying database for sessions: {case_number}/{trace_name}"
-                        )
-                        session_files = asyncio.run(
-                            self._list_sessions_from_database(case_number, trace_name)
-                        )
+                tracer_index = parts.index(".tracer")
+                if tracer_index == 0 or tracer_index + 1 >= len(parts):
+                    logger.warning(
+                        f"Cannot parse path (invalid .tracer position): {output_dir}"
+                    )
+                    return []
 
-                        if session_files:
-                            logger.info(
-                                f"Found {len(session_files)} sessions in database"
-                            )
-                            return session_files
-                        else:
-                            logger.warning(
-                                f"No sessions found in database for {case_number}/{trace_name}"
-                            )
-                            return []
+                case_number = parts[tracer_index - 1]
+                trace_name = parts[tracer_index + 1]
+
+                logger.debug(
+                    f"Querying database for sessions: {case_number}/{trace_name}"
+                )
+                session_files = asyncio.run(
+                    self._list_sessions_from_database(case_number, trace_name)
+                )
+
+                if session_files:
+                    logger.info(f"Found {len(session_files)} sessions in database")
+                    return session_files
+                else:
+                    logger.warning(
+                        f"No sessions found in database for {case_number}/{trace_name}"
+                    )
+                    return []
             except Exception as e:
                 logger.error(f"Error querying database: {e}")
                 return []

@@ -498,7 +498,16 @@ class SMBReplayService:
 
         # Apply server overrides if provided
         if server_overrides:
-            self.system.configure_replay(**server_overrides)
+            max_wait_str = server_overrides.pop("max_wait", None)
+            max_wait = float(max_wait_str) if max_wait_str else None
+            self.system.configure_replay(
+                server_ip=server_overrides.get("server_ip"),
+                domain=server_overrides.get("domain"),
+                username=server_overrides.get("username"),
+                password=server_overrides.get("password"),
+                tree_name=server_overrides.get("tree_name"),
+                max_wait=max_wait,
+            )
 
         operations = self.system.get_session_info(
             session_file, capture_path=capture_path, file_filter=file_filter
@@ -539,7 +548,16 @@ class SMBReplayService:
 
         # Apply server overrides if provided
         if server_overrides:
-            self.system.configure_replay(**server_overrides)
+            max_wait_str = server_overrides.pop("max_wait", None)
+            max_wait = float(max_wait_str) if max_wait_str else None
+            self.system.configure_replay(
+                server_ip=server_overrides.get("server_ip"),
+                domain=server_overrides.get("domain"),
+                username=server_overrides.get("username"),
+                password=server_overrides.get("password"),
+                tree_name=server_overrides.get("tree_name"),
+                max_wait=max_wait,
+            )
 
         operations = self.system.get_session_info(
             session_file, capture_path=capture_path, file_filter=file_filter

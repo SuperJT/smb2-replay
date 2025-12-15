@@ -58,12 +58,14 @@ class IngestResult(BaseModel):
     sessions: list[str] = Field(
         default_factory=list, description="List of session file names"
     )
-    session_count: int = Field(0, description="Number of sessions extracted")
-    total_frames: int | None = Field(None, description="Total frames processed")
-    processing_time: float | None = Field(
-        None, description="Processing time in seconds"
+    session_count: int = Field(default=0, description="Number of sessions extracted")
+    total_frames: int | None = Field(
+        default=None, description="Total frames processed"
     )
-    error: str | None = Field(None, description="Error message if failed")
+    processing_time: float | None = Field(
+        default=None, description="Processing time in seconds"
+    )
+    error: str | None = Field(default=None, description="Error message if failed")
 
 
 class IngestStatusResponse(BaseModel):

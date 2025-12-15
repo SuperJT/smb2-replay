@@ -777,7 +777,7 @@ async def run_ingestion_async(
                         case_number=case_number,
                         trace_name=trace_name,
                         capture_path=capture_path,
-                        packet_count=packet_count,
+                        packet_count=packet_count or 0,
                         file_size=Path(capture_path).stat().st_size,
                         sessions=sessions,
                         status_callback=status_callback,
