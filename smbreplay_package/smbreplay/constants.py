@@ -235,9 +235,27 @@ def get_tree_name_mapping(frames: pd.DataFrame) -> dict[str, str]:
     if isinstance(frames, list):
         frames = pd.DataFrame(frames)
 
+    # Helper function to safely compare column values that might contain arrays
+    def safe_column_equals(series, value):
+        """Safely compare a pandas Series that might contain arrays/lists."""
+        def compare_element(elem):
+            # Handle arrays/lists (check if iterable but not string)
+            if hasattr(elem, '__iter__') and not isinstance(elem, str):
+                try:
+                    # If it's an array/list, check first element
+                    elem_list = list(elem)
+                    if len(elem_list) > 0:
+                        return str(elem_list[0]) == str(value)
+                    return False
+                except (TypeError, ValueError):
+                    pass
+            return str(elem) == str(value)
+        
+        return series.apply(compare_element)
+
     # Find Tree Connect request frames (cmd=3, not response)
     request_frames = frames[
-        (frames["smb2.cmd"] == "3")
+        safe_column_equals(frames["smb2.cmd"], "3")
         & (frames["smb2.flags.response"].astype(str) != "True")
     ]
 
@@ -250,7 +268,7 @@ def get_tree_name_mapping(frames: pd.DataFrame) -> dict[str, str]:
         # Find corresponding response frames
         request_frame_num = int(request_frame.get("frame.number", 0))
         response_frames = frames[
-            (frames["smb2.cmd"] == "3")
+            safe_column_equals(frames["smb2.cmd"], "3")
             & (frames["smb2.flags.response"].astype(str) == "True")
             & (frames["frame.number"].astype(int) > request_frame_num)
         ]
