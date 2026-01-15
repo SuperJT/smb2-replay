@@ -116,6 +116,32 @@ def safe_print(*args, **kwargs):
         sys.exit(1)
 
 
+def _get_scalar_value(value: Any) -> Any:
+    """Extract scalar value from potential numpy array or other array types.
+    
+    When loading from Parquet, some values may be numpy arrays. This function
+    safely extracts the first element for comparison purposes.
+    """
+    if value is None:
+        return None
+    # Check for array-like objects (numpy arrays, lists, etc.) but not strings
+    if hasattr(value, '__iter__') and not isinstance(value, str):
+        try:
+            value_list = list(value)
+            if len(value_list) > 0:
+                return str(value_list[0])
+            return ""
+        except (TypeError, ValueError):
+            pass
+    return str(value) if value is not None else None
+
+
+def _safe_op_get(op: dict, key: str, default: Any = "") -> str:
+    """Safely get a value from an operation dict, handling numpy arrays."""
+    value = op.get(key, default)
+    return _get_scalar_value(value) if value != default else str(default)
+
+
 class SMB2ReplaySystem:
     """Main orchestrator for the SMB2 replay system."""
 
@@ -497,20 +523,20 @@ class SMB2ReplaySystem:
 
         # Collect all valid paths and created files
         for op in operations:
-            filename = op.get("smb2.filename", "")
+            filename = _safe_op_get(op, "smb2.filename", "")
             if filename and filename not in [".", "..", "N/A", ""]:
                 # Strip leading slashes to normalize paths like "\file96.txt"
                 all_paths.add(filename.lstrip("\\/"))
             if (
-                op.get("smb2.cmd") == "5"
-                and op.get("smb2.flags.response") == "True"
-                and op.get("smb2.create.action") == "FILE_CREATED"
+                _safe_op_get(op, "smb2.cmd") == "5"
+                and _safe_op_get(op, "smb2.flags.response") == "True"
+                and _safe_op_get(op, "smb2.create.action") == "FILE_CREATED"
             ):
                 created_files.add(filename.lstrip("\\/"))
             elif (
-                op.get("smb2.cmd") == "5"
-                and op.get("smb2.flags.response") == "True"
-                and op.get("smb2.create.action") == "FILE_OPENED"
+                _safe_op_get(op, "smb2.cmd") == "5"
+                and _safe_op_get(op, "smb2.flags.response") == "True"
+                and _safe_op_get(op, "smb2.create.action") == "FILE_OPENED"
             ):
                 existing_files.add(filename.lstrip("\\/"))
 
@@ -739,20 +765,20 @@ class SMB2ReplaySystem:
             existing_files = set()
 
             for op in operations:
-                filename = op.get("smb2.filename", "")
+                filename = _safe_op_get(op, "smb2.filename", "")
                 if filename and filename not in [".", "..", "N/A", ""]:
                     # Strip leading slashes to normalize paths like "\file96.txt"
                     all_paths.add(filename.lstrip("\\/"))
                 if (
-                    op.get("smb2.cmd") == "5"
-                    and op.get("smb2.flags.response") == "True"
-                    and op.get("smb2.create.action") == "FILE_CREATED"
+                    _safe_op_get(op, "smb2.cmd") == "5"
+                    and _safe_op_get(op, "smb2.flags.response") == "True"
+                    and _safe_op_get(op, "smb2.create.action") == "FILE_CREATED"
                 ):
                     created_files.add(filename.lstrip("\\/"))
                 elif (
-                    op.get("smb2.cmd") == "5"
-                    and op.get("smb2.flags.response") == "True"
-                    and op.get("smb2.create.action") == "FILE_OPENED"
+                    _safe_op_get(op, "smb2.cmd") == "5"
+                    and _safe_op_get(op, "smb2.flags.response") == "True"
+                    and _safe_op_get(op, "smb2.create.action") == "FILE_OPENED"
                 ):
                     existing_files.add(filename.lstrip("\\/"))
 

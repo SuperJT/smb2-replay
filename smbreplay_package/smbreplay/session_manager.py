@@ -914,9 +914,22 @@ class SessionManager:
             "smb2.flags.response",
         ]
 
-        def normalize_field(field_str):
-            """Normalize field values."""
-            if pd.isna(field_str) or not field_str or field_str.strip() == "":
+        def normalize_field(field_val):
+            """Normalize field values, handling numpy arrays and other types."""
+            if field_val is None:
+                return "N/A"
+            # Handle array-like objects (numpy arrays, lists) but not strings
+            if hasattr(field_val, '__iter__') and not isinstance(field_val, str):
+                try:
+                    val_list = list(field_val)
+                    if len(val_list) > 0:
+                        field_val = str(val_list[0])
+                    else:
+                        return "N/A"
+                except (TypeError, ValueError):
+                    pass
+            field_str = str(field_val)
+            if pd.isna(field_val) or not field_str or field_str.strip() == "":
                 return "N/A"
             return field_str.split(",")[0].strip()
 
@@ -935,7 +948,7 @@ class SessionManager:
             # Use mapped and normalized fields
             status_display = row.get("smb2.nt_status_desc", "N/A")
             cmd = row.get("smb2.cmd", "-1")
-            is_response = row.get("smb2.flags.response", "False") == "True"
+            is_response = normalize_field(row.get("smb2.flags.response", "False")) == "True"
 
             # Get command name using the same logic as vectorized method
             op_name = "UNKNOWN"

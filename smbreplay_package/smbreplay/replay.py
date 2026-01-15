@@ -30,6 +30,27 @@ from .constants import SMB2_OP_NAME_DESC
 logger = get_logger()
 
 
+def _get_scalar_value(value: Any) -> Any:
+    """Extract scalar value from potential numpy array or other array types."""
+    if value is None:
+        return None
+    if hasattr(value, '__iter__') and not isinstance(value, str):
+        try:
+            value_list = list(value)
+            if len(value_list) > 0:
+                return str(value_list[0])
+            return ""
+        except (TypeError, ValueError):
+            pass
+    return str(value) if value is not None else None
+
+
+def _safe_op_get(op: dict, key: str, default: Any = "") -> str:
+    """Safely get a value from an operation dict, handling numpy arrays."""
+    value = op.get(key, default)
+    return _get_scalar_value(value) if value != default else str(default)
+
+
 class SMB2Replayer:
     """Handles SMB2 session replay functionality."""
 
@@ -315,15 +336,15 @@ class SMB2Replayer:
         """
         import json
 
-        msg_id = operation.get("smb2.msg_id")
+        msg_id = _safe_op_get(operation, "smb2.msg_id")
         for resp_op in all_operations:
             if (
-                resp_op.get("smb2.cmd") == "5"
-                and resp_op.get("smb2.flags.response") == "True"
-                and resp_op.get("smb2.msg_id") == msg_id
+                _safe_op_get(resp_op, "smb2.cmd") == "5"
+                and _safe_op_get(resp_op, "smb2.flags.response") == "True"
+                and _safe_op_get(resp_op, "smb2.msg_id") == msg_id
             ):
-                create_action = resp_op.get("smb2.create.action", "")
-                nt_status = resp_op.get("smb2.nt_status", "0x00000000")
+                create_action = _safe_op_get(resp_op, "smb2.create.action", "")
+                nt_status = _safe_op_get(resp_op, "smb2.nt_status", "0x00000000")
 
                 # Handle empty create_action (usually means the operation failed)
                 if not create_action or create_action == "":
@@ -358,13 +379,13 @@ class SMB2Replayer:
         candidate_responses = [
             resp_op
             for resp_op in all_operations
-            if resp_op.get("smb2.cmd") == "5"
-            and resp_op.get("smb2.flags.response") == "True"
+            if _safe_op_get(resp_op, "smb2.cmd") == "5"
+            and _safe_op_get(resp_op, "smb2.flags.response") == "True"
         ]
         logger.error("  All candidate SMB2 CREATE response frames:")
         for resp_op in candidate_responses:
             logger.error(
-                f"    Frame {resp_op.get('Frame')}: msg_id={resp_op.get('smb2.msg_id')} action={resp_op.get('smb2.create.action')} status={resp_op.get('smb2.nt_status')}"
+                f"    Frame {resp_op.get('Frame')}: msg_id={_safe_op_get(resp_op, 'smb2.msg_id')} action={_safe_op_get(resp_op, 'smb2.create.action')} status={_safe_op_get(resp_op, 'smb2.nt_status')}"
             )
         logger.error("  (End of candidate response frames)")
         raise ValueError(
@@ -921,8 +942,8 @@ class SMB2Replayer:
                     continue
 
                 try:
-                    is_response = op.get("smb2.flags.response") == "True"
-                    cmd = int(op.get("smb2.cmd", -1))
+                    is_response = _safe_op_get(op, "smb2.flags.response") == "True"
+                    cmd = int(_safe_op_get(op, "smb2.cmd", "-1"))
 
                     if status_callback:
                         status_callback(
