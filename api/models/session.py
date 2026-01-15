@@ -2,9 +2,25 @@
 
 from typing import Any
 
+import numpy as np
 from pydantic import BaseModel, Field, field_validator
 
 from .common import validate_safe_path
+
+
+def _sanitize_numpy(value: Any) -> Any:
+    """Recursively convert numpy types to Python native types for JSON serialization."""
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    elif isinstance(value, (np.integer, np.floating)):
+        return value.item()
+    elif isinstance(value, np.bool_):
+        return bool(value)
+    elif isinstance(value, dict):
+        return {k: _sanitize_numpy(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [_sanitize_numpy(v) for v in value]
+    return value
 
 
 class SessionSummary(BaseModel):
@@ -79,3 +95,11 @@ class OperationsResponse(BaseModel):
     operations: list[dict[str, Any]] = Field(..., description="Raw operation data")
     total: int = Field(..., description="Total number of operations")
     file_filter: str | None = Field(None, description="Applied file filter")
+
+    @field_validator("operations", mode="before")
+    @classmethod
+    def sanitize_operations(cls, v):
+        """Convert numpy types to Python native types for JSON serialization."""
+        if isinstance(v, list):
+            return [_sanitize_numpy(op) for op in v]
+        return v
