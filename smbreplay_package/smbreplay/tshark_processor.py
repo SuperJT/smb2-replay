@@ -273,7 +273,7 @@ def extract_fields(
             if field not in field_dict:
                 field_dict[field] = ""
 
-        # Handle multi-value fields
+        # Handle multi-value fields (fields that appear multiple times in compound packets)
         multi_value_fields = [
             "smb2.sesid",
             "smb2.cmd",
@@ -281,6 +281,7 @@ def extract_fields(
             "smb2.tid",
             "smb2.nt_status",
             "smb2.msg_id",
+            "smb2.flags.response",  # Response flag for compound packets
         ]
         for field in multi_value_fields:
             if field_dict.get(field):
