@@ -1063,20 +1063,14 @@ class SMB2ReplaySystem:
                                 create_options=0,
                             )
                             
-                            # Set file size via SETINFO if we have size information from PCAP
+                            # Extend file to target size by writing a byte at (size-1) offset
+                            # This works better than SETINFO EOF for sparse file creation
                             if file_size > 0:
                                 try:
-                                    import struct
-                                    eof_buffer = struct.pack('<Q', file_size)  # 8-byte little-endian
-                                    file_open.set_info(
-                                        info_type=1,
-                                        file_info_class=20,  # SMB2_FILE_END_OF_FILE_INFO
-                                        additional_information=0,
-                                        buffer=eof_buffer,
-                                    )
+                                    file_open.write(b'\x00', file_size - 1)
                                     safe_print(f"✅ Created file: {path}{size_info}")
                                 except SMBException as e:
-                                    safe_print(f"✅ Created file: {path} (size setting failed: {e})")
+                                    safe_print(f"✅ Created file: {path} (size extend failed: {e})")
                             else:
                                 safe_print(f"✅ Created file: {path}")
                             
