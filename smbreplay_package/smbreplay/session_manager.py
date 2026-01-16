@@ -1047,14 +1047,14 @@ class SessionManager:
                 "StatusDesc": status_desc,
                 "Tree": tree_name,
                 "orig_idx": idx,
-                # Add fields required for replay validation
-                "smb2.cmd": cmd,
+                # Add fields required for replay validation - normalize to handle numpy arrays
+                "smb2.cmd": normalize_field(cmd),
                 "smb2.filename": filename,
                 "smb2.tid": tid,
-                "smb2.nt_status": row.get("smb2.nt_status", "N/A"),
-                "smb2.flags.response": row.get("smb2.flags.response", "False"),
-                "smb2.fid": row.get("smb2.fid", "N/A"),
-                "smb2.msg_id": row.get("smb2.msg_id", "N/A"),
+                "smb2.nt_status": normalize_field(row.get("smb2.nt_status", "N/A")),
+                "smb2.flags.response": normalize_field(row.get("smb2.flags.response", "False")),
+                "smb2.fid": normalize_field(row.get("smb2.fid", "N/A")),
+                "smb2.msg_id": normalize_field(row.get("smb2.msg_id", "N/A")),
                 "is_response": is_response,
             }
 
@@ -1063,30 +1063,30 @@ class SessionManager:
                 if field not in mandatory_fields:
                     # Special handling for meaningful fields only
                     if field in ["smb2.create.action", "smb2.ioctl.function"]:
-                        value = row.get(f"{field}_desc", row.get(field, ""))
+                        value = normalize_field(row.get(f"{field}_desc", row.get(field, "")))
                         if (
                             value
-                            and str(value).strip() != ""
-                            and str(value) != "N/A"
-                            and not str(value).startswith("Unknown")
+                            and value.strip() != ""
+                            and value != "N/A"
+                            and not value.startswith("Unknown")
                         ):
-                            op[field] = str(value)
+                            op[field] = value
                     else:
-                        value = row.get(f"{field}_desc", row.get(field, "N/A"))
-                        op[field] = str(value) if value is not None else "N/A"
+                        value = normalize_field(row.get(f"{field}_desc", row.get(field, "N/A")))
+                        op[field] = value if value is not None else "N/A"
 
             # Add IOCTL function if present and meaningful
             if "smb2.ioctl.function" in frames.columns:
-                ioctl_value = row.get(
+                ioctl_value = normalize_field(row.get(
                     "smb2.ioctl.function_desc", row.get("smb2.ioctl.function", "")
-                )
+                ))
                 if (
                     ioctl_value
-                    and str(ioctl_value).strip() != ""
-                    and str(ioctl_value) != "N/A"
-                    and not str(ioctl_value).startswith("Unknown")
+                    and ioctl_value.strip() != ""
+                    and ioctl_value != "N/A"
+                    and not ioctl_value.startswith("Unknown")
                 ):
-                    op["smb2.ioctl.function"] = str(ioctl_value)
+                    op["smb2.ioctl.function"] = ioctl_value
 
             operations.append(op)
 
