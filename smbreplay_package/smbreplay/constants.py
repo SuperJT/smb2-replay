@@ -484,8 +484,8 @@ CRITICAL_FIELDS = [
     "smb2.cmd",
     "smb2.sesid",
     "smb2.filename",
-    "smb2.write_data",
-    "smb2.read_data",
+    # Note: smb2.write_data and smb2.read_data intentionally excluded
+    # We don't extract TCP payloads - instead we use offset+length to set file sizes
     "smb2.ioctl.function",
     "smb2.tid",
     "smb2.nt_status",
