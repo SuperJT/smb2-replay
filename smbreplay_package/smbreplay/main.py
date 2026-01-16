@@ -505,6 +505,95 @@ class SMB2ReplaySystem:
 
         return results
 
+    def _extract_file_sizes(
+        self, operations: list[dict[str, Any]]
+    ) -> dict[str, int]:
+        """
+        Extract file sizes from operations for sparse file creation.
+        
+        Looks for:
+        - CREATE responses with smb2.eof or smb2.allocation_size
+        - SET_INFO operations setting file size (info_type=1, class=19 or 20)
+        
+        Args:
+            operations: List of operations to analyze
+            
+        Returns:
+            Dictionary mapping normalized file paths to sizes in bytes
+        """
+        file_sizes = {}
+        
+        for op in operations:
+            filename = _safe_op_get(op, "smb2.filename", "")
+            if not filename or filename in [".", "..", "N/A", ""]:
+                continue
+                
+            normalized_path = filename.lstrip("\\/")
+            
+            # Check CREATE responses for initial file size
+            if (
+                _safe_op_get(op, "smb2.cmd") == "5"
+                and _safe_op_get(op, "smb2.flags.response") == "True"
+            ):
+                # Try smb2.eof first (End Of File / File size)
+                eof = _safe_op_get(op, "smb2.eof", None)
+                if eof and eof != "0":
+                    try:
+                        size = int(eof)
+                        if size > 0:
+                            file_sizes[normalized_path] = max(
+                                file_sizes.get(normalized_path, 0), size
+                            )
+                    except (ValueError, TypeError):
+                        pass
+                        
+                # Try smb2.allocation_size
+                alloc_size = _safe_op_get(op, "smb2.allocation_size", None)
+                if alloc_size and alloc_size != "0":
+                    try:
+                        size = int(alloc_size)
+                        if size > 0:
+                            file_sizes[normalized_path] = max(
+                                file_sizes.get(normalized_path, 0), size
+                            )
+                    except (ValueError, TypeError):
+                        pass
+            
+            # Check SET_INFO operations for file size changes
+            # info_type=1 (SMB2_0_INFO_FILE), class=19 (ALLOCATION_INFO) or 20 (EOF_INFO)
+            elif _safe_op_get(op, "smb2.cmd") == "17":  # Set Info
+                info_type = _safe_op_get(op, "smb2.setinfo.info_type", "")
+                file_info_class = _safe_op_get(op, "smb2.setinfo.file_info_class", "")
+                
+                if info_type == "1" and file_info_class in ["19", "20"]:
+                    # Try to extract size from eof or allocation_size fields
+                    eof = _safe_op_get(op, "smb2.eof", None)
+                    if eof and eof != "0":
+                        try:
+                            size = int(eof)
+                            if size > 0:
+                                file_sizes[normalized_path] = max(
+                                    file_sizes.get(normalized_path, 0), size
+                                )
+                        except (ValueError, TypeError):
+                            pass
+                            
+            # Also check WRITE operations to estimate minimum file size
+            elif _safe_op_get(op, "smb2.cmd") == "9":  # Write
+                offset = _safe_op_get(op, "smb2.file_offset", None)
+                length = _safe_op_get(op, "smb2.write.length", None)
+                if offset and length:
+                    try:
+                        write_end = int(offset) + int(length)
+                        if write_end > 0:
+                            file_sizes[normalized_path] = max(
+                                file_sizes.get(normalized_path, 0), write_end
+                            )
+                    except (ValueError, TypeError):
+                        pass
+        
+        return file_sizes
+
     def _validate_file_system_structure(
         self, operations: list[dict[str, Any]]
     ) -> dict[str, Any]:
@@ -765,10 +854,15 @@ class SMB2ReplaySystem:
             else:
                 connection = session = tree = None
 
-            # Analyze operations to get required infrastructure
+            # Analyze operations to get required infrastructure and file sizes
             all_paths = set()
             created_files = set()
             existing_files = set()
+            
+            # Extract file sizes for sparse file creation
+            file_sizes = self._extract_file_sizes(operations)
+            if file_sizes:
+                safe_print(f"📏 Extracted sizes for {len(file_sizes)} files")
 
             for op in operations:
                 filename = _safe_op_get(op, "smb2.filename", "")
@@ -900,11 +994,14 @@ class SMB2ReplaySystem:
                                     f"⚠️  Directory already exists: {current_path}"
                                 )
 
-            # Create pre-existing files
+            # Create pre-existing files with proper sizes (sparse files)
             for path in normalized_paths:
                 if path not in directories and path not in created_files:
+                    file_size = file_sizes.get(path, 0)
+                    size_info = f" ({file_size} bytes)" if file_size > 0 else ""
+                    
                     if dry_run:
-                        safe_print(f"DRY RUN: Would create file: {path}")
+                        safe_print(f"DRY RUN: Would create file: {path}{size_info}")
                         if isinstance(results["files_created"], int):
                             results["files_created"] += 1
                         else:
@@ -914,17 +1011,37 @@ class SMB2ReplaySystem:
                             file_open = Open(tree, path)
                             file_open.create(
                                 impersonation_level=0,
-                                desired_access=0x80000000 | 0x40000000,
+                                desired_access=0x80000000 | 0x40000000,  # GENERIC_READ | GENERIC_WRITE
                                 file_attributes=0,
                                 share_access=0x00000001,
                                 create_disposition=3,  # FILE_OPEN_IF - create if doesn't exist, open if exists
                                 create_options=0,
                             )
+                            
+                            # Set allocation size if we have size information
+                            if file_size > 0:
+                                try:
+                                    # Set end-of-file to create sparse file
+                                    # info_type=1 (FILE), file_info_class=20 (END_OF_FILE_INFO)
+                                    import struct
+                                    eof_buffer = struct.pack('<Q', file_size)  # 8-byte little-endian
+                                    file_open.set_info(
+                                        info_type=1,
+                                        file_info_class=20,  # SMB2_FILE_END_OF_FILE_INFO
+                                        additional_information=0,
+                                        buffer=eof_buffer,
+                                    )
+                                    safe_print(f"✅ Created sparse file: {path}{size_info}")
+                                except SMBException as e:
+                                    safe_print(f"✅ Created file: {path} (size setting failed: {e})")
+                            else:
+                                safe_print(f"✅ Created file: {path}")
+                            
                             if isinstance(results["files_created"], int):
                                 results["files_created"] += 1
                             else:
                                 results["files_created"] = 1
-                            safe_print(f"✅ Created file: {path}")
+                            
                             file_open.close()
                         except SMBException as e:
                             error_msg = f"Failed to create file {path}: {e}"
