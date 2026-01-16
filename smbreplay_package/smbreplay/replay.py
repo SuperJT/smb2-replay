@@ -952,50 +952,73 @@ class SMB2Replayer:
 
                     if not is_response:  # Request
                         handler = self.command_handlers.get(cmd)
+                        cmd_name = SMB2_OP_NAME_DESC.get(cmd, ("Unknown",))[0]
                         logger.debug(
-                            f"Dispatching to handler for cmd={cmd} ({SMB2_OP_NAME_DESC.get(cmd, ('Unknown',))[0]})"
+                            f"Dispatching to handler for cmd={cmd} ({cmd_name})"
                         )
                         if handler:
-                            # Pass correct objects for each handler
-                            if cmd == 3:
+                            # Pass correct objects for each handler based on command type
+                            if cmd == 3:  # Tree Connect
                                 logger.info(
                                     f"Calling Tree Connect handler for operation {i}"
                                 )
                                 handler(session, op)
-                            elif cmd == 5:
+                            elif cmd == 5:  # Create
                                 logger.info(
                                     f"Calling Create handler for operation {i} (filename={op.get('smb2.filename')})"
                                 )
                                 handler(
                                     tree, op, selected_operations
                                 )  # Pass all operations for create type determination
-                            elif cmd == 6:
+                            elif cmd in [6, 7, 8, 9, 10]:  # Close, Flush, Read, Write, Lock
                                 logger.info(
-                                    f"Calling Close handler for operation {i} (fid={op.get('smb2.fid')})"
+                                    f"Calling {cmd_name} handler for operation {i} (fid={op.get('smb2.fid')})"
                                 )
                                 handler(op)
-                            elif cmd == 8:
+                            elif cmd == 11:  # Ioctl
                                 logger.info(
-                                    f"Calling Read handler for operation {i} (fid={op.get('smb2.fid')})"
+                                    f"Calling Ioctl handler for operation {i} (fid={op.get('smb2.fid')})"
                                 )
                                 handler(op)
-                            elif cmd == 9:
+                            elif cmd in [12, 13]:  # Cancel, Echo
                                 logger.info(
-                                    f"Calling Write handler for operation {i} (fid={op.get('smb2.fid')})"
+                                    f"Calling {cmd_name} handler for operation {i}"
                                 )
                                 handler(op)
-                            elif cmd == 10:
-                                self.logger.info(
-                                    f"Calling Lock handler for operation {i} (fid={op.get('smb2.fid')})"
+                            elif cmd == 14:  # Query Directory
+                                logger.info(
+                                    f"Calling Query Directory handler for operation {i} (fid={op.get('smb2.fid')})"
                                 )
                                 handler(op)
-                            elif cmd in [12, 15]:
+                            elif cmd == 15:  # Change Notify
+                                logger.info(
+                                    f"Calling Change Notify handler for operation {i} (fid={op.get('smb2.fid')})"
+                                )
+                                handler(op)
+                            elif cmd == 16:  # Query Info
+                                logger.info(
+                                    f"Calling Query Info handler for operation {i} (fid={op.get('smb2.fid')})"
+                                )
+                                handler(op)
+                            elif cmd == 17:  # Set Info
+                                logger.info(
+                                    f"Calling Set Info handler for operation {i} (fid={op.get('smb2.fid')})"
+                                )
+                                handler(op)
+                            elif cmd in [18, 19]:  # Oplock Break, Lease Break
+                                logger.info(
+                                    f"Calling {cmd_name} handler for operation {i}"
+                                )
                                 handler(op)
                             else:
-                                pass
+                                # Fallback for any other registered handlers
+                                logger.info(
+                                    f"Calling handler for operation {i} cmd={cmd} ({cmd_name})"
+                                )
+                                handler(op)
                             successful_ops += 1
                         else:
-                            logger.warning(f"Invalid command code: {cmd}")
+                            logger.warning(f"No handler for command code: {cmd} ({cmd_name})")
                     else:  # Response
                         self.handle_response(op, cmd)
 
