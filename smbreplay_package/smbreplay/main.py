@@ -582,8 +582,21 @@ class SMB2ReplaySystem:
             normalized_path = filename.lstrip("\\/")
             cmd = _safe_op_get(op, "smb2.cmd", "")
             
+            # Check QUERY_DIRECTORY responses for file sizes
+            if cmd == "14":  # Query Directory
+                eof = _safe_op_get(op, "smb2.eof", None)
+                if eof and eof != "0":
+                    try:
+                        size = int(eof)
+                        if size > 0:
+                            file_sizes[normalized_path] = max(
+                                file_sizes.get(normalized_path, 0), size
+                            )
+                    except (ValueError, TypeError):
+                        pass
+            
             # Check SET_INFO operations for file size changes
-            if cmd == "17":  # Set Info
+            elif cmd == "17":  # Set Info
                 info_type = _safe_op_get(op, "smb2.setinfo.info_type", "")
                 file_info_class = _safe_op_get(op, "smb2.setinfo.file_info_class", "")
                 
@@ -1039,11 +1052,9 @@ class SMB2ReplaySystem:
                                 create_options=0,
                             )
                             
-                            # Set allocation size if we have size information
+                            # Set file size via SETINFO if we have size information from PCAP
                             if file_size > 0:
                                 try:
-                                    # Set end-of-file to create sparse file
-                                    # info_type=1 (FILE), file_info_class=20 (END_OF_FILE_INFO)
                                     import struct
                                     eof_buffer = struct.pack('<Q', file_size)  # 8-byte little-endian
                                     file_open.set_info(
@@ -1052,7 +1063,7 @@ class SMB2ReplaySystem:
                                         additional_information=0,
                                         buffer=eof_buffer,
                                     )
-                                    safe_print(f"✅ Created sparse file: {path}{size_info}")
+                                    safe_print(f"✅ Created file: {path}{size_info}")
                                 except SMBException as e:
                                     safe_print(f"✅ Created file: {path} (size setting failed: {e})")
                             else:
