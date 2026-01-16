@@ -503,8 +503,8 @@ CRITICAL_FIELDS = [
     "smb2.eof",  # End of file / file size
     "smb2.allocation_size",  # File allocation size
     "smb2.file_offset",  # For write/read operations
-    "smb2.write.length",  # Write data length
-    "smb2.read.length",  # Read data length
+    "smb2.write_length",  # Write data length (correct field name)
+    "smb2.read_length",  # Read data length (correct field name)
     "smb2.setinfo.info_type",  # Set info type
     "smb2.setinfo.file_info_class",  # Set info class
 ]

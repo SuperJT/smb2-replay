@@ -16,7 +16,7 @@ def handle_read(replayer, op):
     file_open = replayer.fid_mapping.get(original_fid)
     if file_open:
         offset = int(op.get("smb2.read.offset", 0))
-        length = int(op.get("smb2.read.length", 1024))
+        length = int(op.get("smb2.read_length", 1024))
         try:
             data = file_open.read(length, offset)
             replayer.logger.debug(

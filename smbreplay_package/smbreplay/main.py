@@ -602,7 +602,7 @@ class SMB2ReplaySystem:
             # Also check WRITE operations to estimate minimum file size
             elif cmd == "9":  # Write
                 offset = _safe_op_get(op, "smb2.file_offset", None)
-                length = _safe_op_get(op, "smb2.write.length", None)
+                length = _safe_op_get(op, "smb2.write_length", None)
                 if offset and length:
                     try:
                         write_end = int(offset) + int(length)
