@@ -1050,9 +1050,16 @@ class SMB2ReplaySystem:
                 port=445,
             )
             
+            # Debug: show file_sizes dict
+            safe_print(f"DEBUG: file_sizes has {len(file_sizes)} entries")
+            for k, v in list(file_sizes.items())[:10]:
+                safe_print(f"  DEBUG: file_sizes['{k}'] = {v}")
+            
             for path in normalized_paths:
                 if path not in directories and path not in created_files:
                     file_size = file_sizes.get(path, 0)
+                    # Debug: show lookup
+                    safe_print(f"DEBUG: Looking up path='{path}' -> file_size={file_size}")
                     size_info = f" ({file_size} bytes)" if file_size > 0 else ""
                     unc_path = f"\\\\{server_ip}\\{tree_name}\\{path}"
                     
