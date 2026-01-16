@@ -1039,11 +1039,22 @@ class SMB2ReplaySystem:
                                     f"⚠️  Directory already exists: {current_path}"
                                 )
 
-            # Create pre-existing files with proper sizes (sparse files)
+            # Create pre-existing files with proper sizes using smbclient
+            import smbclient
+            
+            # Register session for smbclient
+            smbclient.register_session(
+                server_ip,
+                username=username,
+                password=password,
+                port=445,
+            )
+            
             for path in normalized_paths:
                 if path not in directories and path not in created_files:
                     file_size = file_sizes.get(path, 0)
                     size_info = f" ({file_size} bytes)" if file_size > 0 else ""
+                    unc_path = f"\\\\{server_ip}\\{tree_name}\\{path}"
                     
                     if dry_run:
                         safe_print(f"DRY RUN: Would create file: {path}{size_info}")
@@ -1053,24 +1064,13 @@ class SMB2ReplaySystem:
                             results["files_created"] = 1
                     else:
                         try:
-                            file_open = Open(tree, path)
-                            file_open.create(
-                                impersonation_level=0,
-                                desired_access=0x80000000 | 0x40000000,  # GENERIC_READ | GENERIC_WRITE
-                                file_attributes=0,
-                                share_access=0x00000001,
-                                create_disposition=3,  # FILE_OPEN_IF - create if doesn't exist, open if exists
-                                create_options=0,
-                            )
+                            # Create/open file and set size using smbclient
+                            with smbclient.open_file(unc_path, mode='wb') as f:
+                                if file_size > 0:
+                                    f.truncate(file_size)
                             
-                            # Extend file to target size by writing a byte at (size-1) offset
-                            # This works better than SETINFO EOF for sparse file creation
                             if file_size > 0:
-                                try:
-                                    file_open.write(b'\x00', file_size - 1)
-                                    safe_print(f"✅ Created file: {path}{size_info}")
-                                except SMBException as e:
-                                    safe_print(f"✅ Created file: {path} (size extend failed: {e})")
+                                safe_print(f"✅ Created file: {path}{size_info}")
                             else:
                                 safe_print(f"✅ Created file: {path}")
                             
@@ -1078,9 +1078,7 @@ class SMB2ReplaySystem:
                                 results["files_created"] += 1
                             else:
                                 results["files_created"] = 1
-                            
-                            file_open.close()
-                        except SMBException as e:
+                        except Exception as e:
                             error_msg = f"Failed to create file {path}: {e}"
                             safe_print(f"❌ {error_msg}")
                             if isinstance(results["errors"], list):
