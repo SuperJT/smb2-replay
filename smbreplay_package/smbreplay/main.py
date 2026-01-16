@@ -553,8 +553,13 @@ class SMB2ReplaySystem:
         normalized_paths = set()
 
         for path in all_paths:
-            # Normalize path separators (handle both \ and /)
+            # Normalize path separators:
+            # 1. Replace forward slashes with backslashes
+            # 2. Collapse multiple backslashes into single backslash
             normalized_path = path.replace("/", "\\")
+            # Collapse \\ to \ (handles escaped or double backslashes from source data)
+            while "\\\\" in normalized_path:
+                normalized_path = normalized_path.replace("\\\\", "\\")
             normalized_paths.add(normalized_path)
 
             # Extract parent directories for all paths with multiple parts
@@ -722,11 +727,12 @@ class SMB2ReplaySystem:
 
         # Get replay configuration
         replay_config = self.config.replay_config.copy()
-        server_ip = replay_config.get("server_ip", "127.0.0.1")
+        # Strip whitespace from server_ip to handle malformed input
+        server_ip = str(replay_config.get("server_ip", "127.0.0.1")).strip()
         port = int(replay_config.get("port", 445))
-        username = replay_config.get("username", "testuser")
+        username = str(replay_config.get("username", "testuser")).strip()
         password = replay_config.get("password", "PASSWORD")
-        tree_name = replay_config.get("tree_name", "testshare")
+        tree_name = str(replay_config.get("tree_name", "testshare")).strip()
 
         if dry_run:
             safe_print(f"DRY RUN: Would connect to {server_ip}:{port} as {username}")
@@ -801,7 +807,12 @@ class SMB2ReplaySystem:
             normalized_paths = set()
 
             for path in all_paths:
+                # Normalize path separators:
+                # 1. Replace forward slashes with backslashes
+                # 2. Collapse multiple backslashes into single backslash
                 normalized_path = path.replace("/", "\\")
+                while "\\\\" in normalized_path:
+                    normalized_path = normalized_path.replace("\\\\", "\\")
                 normalized_paths.add(normalized_path)
 
                 # Extract parent directories for paths with multiple parts

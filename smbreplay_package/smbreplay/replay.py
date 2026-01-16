@@ -95,7 +95,7 @@ class SMB2Replayer:
         if server_ip is None:
             # Get server IP from configuration
             replay_config = self.get_replay_config()
-            server_ip = replay_config.get("server_ip", "127.0.0.1")
+            server_ip = str(replay_config.get("server_ip", "127.0.0.1")).strip()
 
         try:
             self.logger.info(
@@ -830,7 +830,8 @@ class SMB2Replayer:
         # Extract server configuration and force reload
         self.config._load_config()  # Force reload from disk
         replay_config = self.get_replay_config()
-        server_ip = replay_config.get("server_ip", "127.0.0.1")
+        # Strip whitespace from server_ip to handle malformed input
+        server_ip = str(replay_config.get("server_ip", "127.0.0.1")).strip()
 
         # Validate and convert port with bounds checking
         try:
