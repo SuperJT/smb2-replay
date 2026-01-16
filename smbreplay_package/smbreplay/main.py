@@ -505,6 +505,31 @@ class SMB2ReplaySystem:
 
         return results
 
+    def _normalize_smb_path(self, path: str) -> str:
+        """
+        Normalize an SMB path for consistent lookups.
+        
+        - Strips leading slashes/backslashes
+        - Converts forward slashes to backslashes
+        - Collapses multiple backslashes into single backslash
+        
+        Args:
+            path: Path to normalize
+            
+        Returns:
+            Normalized path using backslashes
+        """
+        if not path:
+            return path
+        # Strip leading slashes
+        normalized = path.lstrip("\\/")
+        # Convert forward slashes to backslashes
+        normalized = normalized.replace("/", "\\")
+        # Collapse multiple backslashes
+        while "\\\\" in normalized:
+            normalized = normalized.replace("\\\\", "\\")
+        return normalized
+
     def _extract_file_sizes(
         self, operations: list[dict[str, Any]]
     ) -> dict[str, int]:
@@ -545,7 +570,7 @@ class SMB2ReplaySystem:
                     # Create request - has filename
                     filename = _safe_op_get(op, "smb2.filename", "")
                     if filename and filename not in [".", "..", "N/A", ""]:
-                        create_request_filenames[msg_id] = filename.lstrip("\\/")
+                        create_request_filenames[msg_id] = self._normalize_smb_path(filename)
                 else:
                     # Create response - has eof/allocation_size
                     eof = 0
@@ -579,7 +604,7 @@ class SMB2ReplaySystem:
             if not filename or filename in [".", "..", "N/A", ""]:
                 continue
                 
-            normalized_path = filename.lstrip("\\/")
+            normalized_path = self._normalize_smb_path(filename)
             cmd = _safe_op_get(op, "smb2.cmd", "")
             
             # Check QUERY_DIRECTORY responses for file sizes
@@ -599,7 +624,7 @@ class SMB2ReplaySystem:
                             try:
                                 size = int(eof_values[i])
                                 if size > 0:
-                                    norm_fname = fname.lstrip("\\/")
+                                    norm_fname = self._normalize_smb_path(fname)
                                     file_sizes[norm_fname] = max(
                                         file_sizes.get(norm_fname, 0), size
                                     )
@@ -659,20 +684,20 @@ class SMB2ReplaySystem:
         for op in operations:
             filename = _safe_op_get(op, "smb2.filename", "")
             if filename and filename not in [".", "..", "N/A", ""]:
-                # Strip leading slashes to normalize paths like "\file96.txt"
-                all_paths.add(filename.lstrip("\\/"))
+                # Normalize paths consistently
+                all_paths.add(self._normalize_smb_path(filename))
             if (
                 _safe_op_get(op, "smb2.cmd") == "5"
                 and _safe_op_get(op, "smb2.flags.response") == "True"
                 and _safe_op_get(op, "smb2.create.action") == "FILE_CREATED"
             ):
-                created_files.add(filename.lstrip("\\/"))
+                created_files.add(self._normalize_smb_path(filename))
             elif (
                 _safe_op_get(op, "smb2.cmd") == "5"
                 and _safe_op_get(op, "smb2.flags.response") == "True"
                 and _safe_op_get(op, "smb2.create.action") == "FILE_OPENED"
             ):
-                existing_files.add(filename.lstrip("\\/"))
+                existing_files.add(self._normalize_smb_path(filename))
 
         if not all_paths:
             return {
@@ -682,22 +707,13 @@ class SMB2ReplaySystem:
                 "warnings": [],
             }
 
-        # Normalize paths and extract directories
+        # Extract directories from paths (already normalized)
         directories = set()
-        normalized_paths = set()
+        normalized_paths = set(all_paths)
 
         for path in all_paths:
-            # Normalize path separators:
-            # 1. Replace forward slashes with backslashes
-            # 2. Collapse multiple backslashes into single backslash
-            normalized_path = path.replace("/", "\\")
-            # Collapse \\ to \ (handles escaped or double backslashes from source data)
-            while "\\\\" in normalized_path:
-                normalized_path = normalized_path.replace("\\\\", "\\")
-            normalized_paths.add(normalized_path)
-
             # Extract parent directories for all paths with multiple parts
-            parts = normalized_path.split("\\")
+            parts = path.split("\\")
             if len(parts) > 1:
                 for i in range(1, len(parts)):
                     dir_path = "\\".join(parts[:i])
@@ -912,20 +928,20 @@ class SMB2ReplaySystem:
             for op in operations:
                 filename = _safe_op_get(op, "smb2.filename", "")
                 if filename and filename not in [".", "..", "N/A", ""]:
-                    # Strip leading slashes to normalize paths like "\file96.txt"
-                    all_paths.add(filename.lstrip("\\/"))
+                    # Normalize paths consistently for reliable lookups
+                    all_paths.add(self._normalize_smb_path(filename))
                 if (
                     _safe_op_get(op, "smb2.cmd") == "5"
                     and _safe_op_get(op, "smb2.flags.response") == "True"
                     and _safe_op_get(op, "smb2.create.action") == "FILE_CREATED"
                 ):
-                    created_files.add(filename.lstrip("\\/"))
+                    created_files.add(self._normalize_smb_path(filename))
                 elif (
                     _safe_op_get(op, "smb2.cmd") == "5"
                     and _safe_op_get(op, "smb2.flags.response") == "True"
                     and _safe_op_get(op, "smb2.create.action") == "FILE_OPENED"
                 ):
-                    existing_files.add(filename.lstrip("\\/"))
+                    existing_files.add(self._normalize_smb_path(filename))
 
             if not all_paths:
                 safe_print("[INFO] No file paths to setup")
@@ -942,20 +958,13 @@ class SMB2ReplaySystem:
                     results["errors"] = cleanup_results["errors"]
 
             # Normalize paths and extract directories
+            # Note: all_paths is already normalized via _normalize_smb_path
             directories = set()
-            normalized_paths = set()
+            normalized_paths = set(all_paths)  # Already normalized
 
             for path in all_paths:
-                # Normalize path separators:
-                # 1. Replace forward slashes with backslashes
-                # 2. Collapse multiple backslashes into single backslash
-                normalized_path = path.replace("/", "\\")
-                while "\\\\" in normalized_path:
-                    normalized_path = normalized_path.replace("\\\\", "\\")
-                normalized_paths.add(normalized_path)
-
                 # Extract parent directories for paths with multiple parts
-                parts = normalized_path.split("\\")
+                parts = path.split("\\")
                 if len(parts) > 1:
                     for i in range(1, len(parts)):
                         dir_path = "\\".join(parts[:i])
@@ -1050,16 +1059,9 @@ class SMB2ReplaySystem:
                 port=445,
             )
             
-            # Debug: show file_sizes dict
-            safe_print(f"DEBUG: file_sizes has {len(file_sizes)} entries")
-            for k, v in list(file_sizes.items())[:10]:
-                safe_print(f"  DEBUG: file_sizes['{k}'] = {v}")
-            
             for path in normalized_paths:
                 if path not in directories and path not in created_files:
                     file_size = file_sizes.get(path, 0)
-                    # Debug: show lookup
-                    safe_print(f"DEBUG: Looking up path='{path}' -> file_size={file_size}")
                     size_info = f" ({file_size} bytes)" if file_size > 0 else ""
                     unc_path = f"\\\\{server_ip}\\{tree_name}\\{path}"
                     

@@ -572,6 +572,134 @@ class SMB2Replayer:
             f"Cleanup completed: {files_deleted} files deleted, {dirs_deleted} directories deleted"
         )
 
+    def _normalize_smb_path(self, path: str) -> str:
+        """
+        Normalize an SMB path for consistent lookups.
+        
+        - Strips leading slashes/backslashes
+        - Converts forward slashes to backslashes
+        - Collapses multiple backslashes into single backslash
+        
+        Args:
+            path: Path to normalize
+            
+        Returns:
+            Normalized path using backslashes
+        """
+        if not path:
+            return path
+        # Strip leading slashes
+        normalized = path.lstrip("\\/")
+        # Convert forward slashes to backslashes
+        normalized = normalized.replace("/", "\\")
+        # Collapse multiple backslashes
+        while "\\\\" in normalized:
+            normalized = normalized.replace("\\\\", "\\")
+        return normalized
+
+    def _extract_file_sizes(self, operations: list[dict[str, Any]]) -> dict[str, int]:
+        """
+        Extract file sizes from operations for sparse file creation.
+        
+        Looks for:
+        - CREATE responses with smb2.eof or smb2.allocation_size
+        - SET_INFO operations setting file size
+        - WRITE operations to estimate minimum file size
+        
+        Args:
+            operations: List of operations to analyze
+            
+        Returns:
+            Dictionary mapping normalized file paths to sizes in bytes
+        """
+        file_sizes: dict[str, int] = {}
+        
+        # Build lookup tables for request/response correlation
+        create_request_filenames: dict[str, str] = {}
+        create_response_sizes: dict[str, tuple[int, int]] = {}
+        
+        # First pass: collect Create requests and responses
+        for op in operations:
+            msg_id = _safe_op_get(op, "smb2.msg_id", "")
+            if not msg_id:
+                continue
+                
+            cmd = _safe_op_get(op, "smb2.cmd", "")
+            is_response = _safe_op_get(op, "smb2.flags.response", "") == "True"
+            
+            if cmd == "5":  # Create
+                if not is_response:
+                    filename = _safe_op_get(op, "smb2.filename", "")
+                    if filename and filename not in [".", "..", "N/A", ""]:
+                        create_request_filenames[msg_id] = self._normalize_smb_path(filename)
+                else:
+                    eof = 0
+                    alloc_size = 0
+                    eof_str = _safe_op_get(op, "smb2.eof", None)
+                    if eof_str and eof_str != "0":
+                        try:
+                            eof = int(eof_str)
+                        except (ValueError, TypeError):
+                            pass
+                    alloc_str = _safe_op_get(op, "smb2.allocation_size", None)
+                    if alloc_str and alloc_str != "0":
+                        try:
+                            alloc_size = int(alloc_str)
+                        except (ValueError, TypeError):
+                            pass
+                    if eof > 0 or alloc_size > 0:
+                        create_response_sizes[msg_id] = (eof, alloc_size)
+        
+        # Correlate Create requests with responses
+        for msg_id, filename in create_request_filenames.items():
+            if msg_id in create_response_sizes:
+                eof, alloc_size = create_response_sizes[msg_id]
+                size = max(eof, alloc_size)
+                if size > 0:
+                    file_sizes[filename] = max(file_sizes.get(filename, 0), size)
+        
+        # Second pass: check SET_INFO and WRITE operations
+        for op in operations:
+            filename = _safe_op_get(op, "smb2.filename", "")
+            if not filename or filename in [".", "..", "N/A", ""]:
+                continue
+                
+            normalized_path = self._normalize_smb_path(filename)
+            cmd = _safe_op_get(op, "smb2.cmd", "")
+            
+            # Check SET_INFO operations for file size changes
+            if cmd == "17":  # Set Info
+                info_type = _safe_op_get(op, "smb2.setinfo.info_type", "")
+                file_info_class = _safe_op_get(op, "smb2.setinfo.file_info_class", "")
+                
+                if info_type == "1" and file_info_class in ["19", "20"]:
+                    eof = _safe_op_get(op, "smb2.eof", None)
+                    if eof and eof != "0":
+                        try:
+                            size = int(eof)
+                            if size > 0:
+                                file_sizes[normalized_path] = max(
+                                    file_sizes.get(normalized_path, 0), size
+                                )
+                        except (ValueError, TypeError):
+                            pass
+                            
+            # Check WRITE operations to estimate minimum file size
+            elif cmd == "9":  # Write
+                offset = _safe_op_get(op, "smb2.file_offset", None)
+                length = _safe_op_get(op, "smb2.write_length", None)
+                if offset and length:
+                    try:
+                        write_end = int(offset) + int(length)
+                        if write_end > 0:
+                            file_sizes[normalized_path] = max(
+                                file_sizes.get(normalized_path, 0), write_end
+                            )
+                    except (ValueError, TypeError):
+                        pass
+        
+        return file_sizes
+
     def setup_pre_trace_state(
         self, tree: "TreeConnect", session: "Session", selected_operations: list
     ):
@@ -588,11 +716,19 @@ class SMB2Replayer:
         logger.info("Setting up pre-trace state for selected operations")
         replay_config = self.get_replay_config()
         tree_name = replay_config.get("tree_name", "testshare")
+        server_ip = str(replay_config.get("server_ip", "127.0.0.1")).strip()
+        username = replay_config.get("username", "guest")
+        password = replay_config.get("password", "")
 
         if self.reset_mode == "complete":
             self.reset_target_to_fresh_state(tree, tree_name)
         else:
             logger.info("Using cleanup mode - skipping complete reset")
+
+        # Extract file sizes for sparse file creation
+        file_sizes = self._extract_file_sizes(selected_operations)
+        if file_sizes:
+            logger.info(f"Extracted sizes for {len(file_sizes)} files")
 
         # --- NEW LOGIC: Find all files and parent directories referenced by CREATE/WRITE requests ---
         file_paths = set()
@@ -603,7 +739,8 @@ class SMB2Replayer:
                 filename = op.get("smb2.filename", "")
                 rel_filename = get_share_relative_path(self, filename)
                 if rel_filename and rel_filename not in [".", "..", "N/A", ""]:
-                    file_paths.add(rel_filename)
+                    # Normalize paths for consistent lookup with file_sizes
+                    file_paths.add(self._normalize_smb_path(rel_filename))
 
         # Build parent directories for all files
         directories = set()
@@ -657,28 +794,41 @@ class SMB2Replayer:
                         created_dirs.add(current_path)
                         logger.debug(f"Directory already exists: {current_path}")
 
-        # Pre-create all files (as empty files)
+        # Pre-create all files with proper sizes using smbclient
+        import smbclient
+        
+        # Register session for smbclient
+        smbclient.register_session(
+            server_ip,
+            username=username,
+            password=password,
+            port=445,
+        )
+        
         files_created = 0
+        files_with_size = 0
         for rel_path in file_paths:
             try:
-                file_open = Open(tree, rel_path)
-                file_open.create(
-                    impersonation_level=0,
-                    desired_access=0x80000000 | 0x40000000,
-                    file_attributes=0,
-                    share_access=0x00000001,
-                    create_disposition=3,
-                    create_options=0,
-                )
+                file_size = file_sizes.get(rel_path, 0)
+                unc_path = f"\\\\{server_ip}\\{tree_name}\\{rel_path}"
+                
+                # Create/open file and set size using smbclient
+                with smbclient.open_file(unc_path, mode='wb') as f:
+                    if file_size > 0:
+                        f.truncate(file_size)
+                        files_with_size += 1
+                
                 files_created += 1
-                logger.debug(f"Pre-created file: {rel_path}")
-                file_open.close()
-            except SMBException as e:
+                if file_size > 0:
+                    logger.debug(f"Pre-created file: {rel_path} ({file_size} bytes)")
+                else:
+                    logger.debug(f"Pre-created file: {rel_path}")
+            except Exception as e:
                 logger.warning(f"Failed to pre-create file {rel_path}: {e}")
 
         logger.info("Pre-trace state setup complete:")
         logger.info(f"  - {len(created_dirs)} directories created/exist")
-        logger.info(f"  - {files_created} files pre-created for open/write/create")
+        logger.info(f"  - {files_created} files pre-created ({files_with_size} with size set)")
         logger.info(f"  - {len(file_paths)} total file paths pre-created")
 
         # --- Close SMB session and connection after pre-trace setup ---
