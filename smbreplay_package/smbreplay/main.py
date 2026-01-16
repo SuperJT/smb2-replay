@@ -513,7 +513,9 @@ class SMB2ReplaySystem:
         
         Looks for:
         - CREATE responses with smb2.eof or smb2.allocation_size
+          (correlates with request via msg_id to get filename)
         - SET_INFO operations setting file size (info_type=1, class=19 or 20)
+        - WRITE operations to estimate minimum file size
         
         Args:
             operations: List of operations to analyze
@@ -521,52 +523,71 @@ class SMB2ReplaySystem:
         Returns:
             Dictionary mapping normalized file paths to sizes in bytes
         """
-        file_sizes = {}
+        file_sizes: dict[str, int] = {}
         
+        # Build lookup tables for request/response correlation
+        # msg_id -> filename (from Create requests)
+        create_request_filenames: dict[str, str] = {}
+        # msg_id -> (eof, allocation_size) (from Create responses)
+        create_response_sizes: dict[str, tuple[int, int]] = {}
+        
+        # First pass: collect Create requests and responses
+        for op in operations:
+            msg_id = _safe_op_get(op, "smb2.msg_id", "")
+            if not msg_id:
+                continue
+                
+            cmd = _safe_op_get(op, "smb2.cmd", "")
+            is_response = _safe_op_get(op, "smb2.flags.response", "") == "True"
+            
+            if cmd == "5":  # Create
+                if not is_response:
+                    # Create request - has filename
+                    filename = _safe_op_get(op, "smb2.filename", "")
+                    if filename and filename not in [".", "..", "N/A", ""]:
+                        create_request_filenames[msg_id] = filename.lstrip("\\/")
+                else:
+                    # Create response - has eof/allocation_size
+                    eof = 0
+                    alloc_size = 0
+                    eof_str = _safe_op_get(op, "smb2.eof", None)
+                    if eof_str and eof_str != "0":
+                        try:
+                            eof = int(eof_str)
+                        except (ValueError, TypeError):
+                            pass
+                    alloc_str = _safe_op_get(op, "smb2.allocation_size", None)
+                    if alloc_str and alloc_str != "0":
+                        try:
+                            alloc_size = int(alloc_str)
+                        except (ValueError, TypeError):
+                            pass
+                    if eof > 0 or alloc_size > 0:
+                        create_response_sizes[msg_id] = (eof, alloc_size)
+        
+        # Correlate Create requests with responses via msg_id
+        for msg_id, filename in create_request_filenames.items():
+            if msg_id in create_response_sizes:
+                eof, alloc_size = create_response_sizes[msg_id]
+                size = max(eof, alloc_size)
+                if size > 0:
+                    file_sizes[filename] = max(file_sizes.get(filename, 0), size)
+        
+        # Second pass: check SET_INFO and WRITE operations
         for op in operations:
             filename = _safe_op_get(op, "smb2.filename", "")
             if not filename or filename in [".", "..", "N/A", ""]:
                 continue
                 
             normalized_path = filename.lstrip("\\/")
-            
-            # Check CREATE responses for initial file size
-            if (
-                _safe_op_get(op, "smb2.cmd") == "5"
-                and _safe_op_get(op, "smb2.flags.response") == "True"
-            ):
-                # Try smb2.eof first (End Of File / File size)
-                eof = _safe_op_get(op, "smb2.eof", None)
-                if eof and eof != "0":
-                    try:
-                        size = int(eof)
-                        if size > 0:
-                            file_sizes[normalized_path] = max(
-                                file_sizes.get(normalized_path, 0), size
-                            )
-                    except (ValueError, TypeError):
-                        pass
-                        
-                # Try smb2.allocation_size
-                alloc_size = _safe_op_get(op, "smb2.allocation_size", None)
-                if alloc_size and alloc_size != "0":
-                    try:
-                        size = int(alloc_size)
-                        if size > 0:
-                            file_sizes[normalized_path] = max(
-                                file_sizes.get(normalized_path, 0), size
-                            )
-                    except (ValueError, TypeError):
-                        pass
+            cmd = _safe_op_get(op, "smb2.cmd", "")
             
             # Check SET_INFO operations for file size changes
-            # info_type=1 (SMB2_0_INFO_FILE), class=19 (ALLOCATION_INFO) or 20 (EOF_INFO)
-            elif _safe_op_get(op, "smb2.cmd") == "17":  # Set Info
+            if cmd == "17":  # Set Info
                 info_type = _safe_op_get(op, "smb2.setinfo.info_type", "")
                 file_info_class = _safe_op_get(op, "smb2.setinfo.file_info_class", "")
                 
                 if info_type == "1" and file_info_class in ["19", "20"]:
-                    # Try to extract size from eof or allocation_size fields
                     eof = _safe_op_get(op, "smb2.eof", None)
                     if eof and eof != "0":
                         try:
@@ -579,7 +600,7 @@ class SMB2ReplaySystem:
                             pass
                             
             # Also check WRITE operations to estimate minimum file size
-            elif _safe_op_get(op, "smb2.cmd") == "9":  # Write
+            elif cmd == "9":  # Write
                 offset = _safe_op_get(op, "smb2.file_offset", None)
                 length = _safe_op_get(op, "smb2.write.length", None)
                 if offset and length:
