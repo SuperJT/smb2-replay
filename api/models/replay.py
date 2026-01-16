@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ValidationCheck(BaseModel):
@@ -28,6 +28,21 @@ class FileSystemCheck(BaseModel):
     created_files: int | None = Field(None, description="Files to be created")
     existing_files: int | None = Field(None, description="Existing files to open")
     warnings: list[str] = Field(default_factory=list, description="Warning messages")
+
+    @field_validator("missing_directories", mode="before")
+    @classmethod
+    def normalize_paths(cls, v: list[str]) -> list[str]:
+        """Normalize directory paths by collapsing double backslashes."""
+        if not v:
+            return v
+        normalized = []
+        for path in v:
+            if isinstance(path, str):
+                # Collapse multiple backslashes to single backslash
+                while "\\\\" in path:
+                    path = path.replace("\\\\", "\\")
+            normalized.append(path)
+        return normalized
 
 
 class ValidationResult(BaseModel):
