@@ -583,17 +583,28 @@ class SMB2ReplaySystem:
             cmd = _safe_op_get(op, "smb2.cmd", "")
             
             # Check QUERY_DIRECTORY responses for file sizes
+            # These have comma-separated lists of filenames and sizes
             if cmd == "14":  # Query Directory
-                eof = _safe_op_get(op, "smb2.eof", None)
-                if eof and eof != "0":
-                    try:
-                        size = int(eof)
-                        if size > 0:
-                            file_sizes[normalized_path] = max(
-                                file_sizes.get(normalized_path, 0), size
-                            )
-                    except (ValueError, TypeError):
-                        pass
+                eof_str = _safe_op_get(op, "smb2.eof", None)
+                filename_str = _safe_op_get(op, "smb2.filename", None)
+                
+                if eof_str and filename_str:
+                    # Parse comma-separated values
+                    eof_values = eof_str.split(",")
+                    filename_values = filename_str.split(",")
+                    
+                    # Map each filename to its corresponding size
+                    for i, fname in enumerate(filename_values):
+                        if i < len(eof_values) and fname not in [".", "..", "N/A", ""]:
+                            try:
+                                size = int(eof_values[i])
+                                if size > 0:
+                                    norm_fname = fname.lstrip("\\/")
+                                    file_sizes[norm_fname] = max(
+                                        file_sizes.get(norm_fname, 0), size
+                                    )
+                            except (ValueError, TypeError):
+                                pass
             
             # Check SET_INFO operations for file size changes
             elif cmd == "17":  # Set Info
