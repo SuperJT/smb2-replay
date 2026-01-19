@@ -436,16 +436,21 @@ class SessionManager:
         volatile_fields = ["smb2.time", "smb2.frame.time"]
         field_options = [f for f in all_fields if f not in volatile_fields]
 
-        # Default selected fields - include fields needed for file size extraction
+        # Default selected fields - include fields needed for file size extraction and locks
         default_fields = [
             "smb2.nt_status",
             "smb2.create.action",
             "smb2.eof",  # End of file / file size
             "smb2.allocation_size",  # File allocation size
-            "smb2.file_offset",  # For write/read operations
+            "smb2.file_offset",  # For write/read/lock operations
             "smb2.write_length",  # Write data length
+            "smb2.read_length",  # Read data length
             "smb2.setinfo.info_type",  # Set info type
             "smb2.setinfo.file_info_class",  # Set info class
+            # Lock operation fields
+            "smb2.lock_length",  # Lock byte range length
+            "smb2.lock_flags",  # Lock flags (shared, exclusive, unlock, fail_immediately)
+            "smb2.lock_count",  # Number of lock elements
         ]
         selected_fields = [f for f in default_fields if f in field_options]
 
@@ -792,17 +797,22 @@ class SessionManager:
                 logger.warning(f"Failed to load session data for {session_file}")
                 return []
 
-        # Default selected fields - include fields needed for file size extraction
+        # Default selected fields - include fields needed for file size extraction and locks
         if selected_fields is None:
             selected_fields = [
                 "smb2.nt_status",
                 "smb2.create.action",
                 "smb2.eof",  # End of file / file size
                 "smb2.allocation_size",  # File allocation size
-                "smb2.file_offset",  # For write/read operations
+                "smb2.file_offset",  # For write/read/lock operations
                 "smb2.write_length",  # Write data length
+                "smb2.read_length",  # Read data length
                 "smb2.setinfo.info_type",  # Set info type
                 "smb2.setinfo.file_info_class",  # Set info class
+                # Lock operation fields
+                "smb2.lock_length",  # Lock byte range length
+                "smb2.lock_flags",  # Lock flags (shared, exclusive, unlock, fail_immediately)
+                "smb2.lock_count",  # Number of lock elements
             ]
 
         # Filter invalid fields

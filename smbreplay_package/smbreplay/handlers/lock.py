@@ -129,6 +129,15 @@ def handle_lock(replayer, op: dict[str, Any], **kwargs):
                     f"Could not parse lock flags '{raw_flags}', defaulting to 0: {e}"
                 )
                 flags = 0
+
+            # Validate lock range - length must be > 0 for a valid lock
+            if length <= 0:
+                replayer.logger.warning(
+                    f"Lock: Invalid lock length ({length}) for fid={original_fid}, "
+                    f"offset={offset}, flags={flags}. Lock must specify a valid byte range."
+                )
+                return
+
             lock_elements = [(offset, length, flags)]
         replayer.logger.info(f"Lock elements for fid={original_fid}: {lock_elements}")
         if not lock_elements:
@@ -137,12 +146,28 @@ def handle_lock(replayer, op: dict[str, Any], **kwargs):
         # Build SMB2LockElement objects
         smb2_locks = []
         for offset, length, flags in lock_elements:
+            # Skip invalid lock elements with zero length
+            if length <= 0:
+                replayer.logger.warning(
+                    f"Lock: Skipping invalid lock element with length={length} "
+                    f"for fid={original_fid}"
+                )
+                continue
             lock_elem = SMB2LockElement()
             lock_elem["offset"] = offset
             lock_elem["length"] = length
             # Set the flags field directly from the trace
             lock_elem["flags"] = flags
             smb2_locks.append(lock_elem)
+
+        # Ensure we have valid lock elements to send
+        if not smb2_locks:
+            replayer.logger.warning(
+                f"Lock: No valid lock elements to send for fid={original_fid}. "
+                f"All lock elements had invalid ranges (length <= 0)."
+            )
+            return
+
         file_open.lock(smb2_locks)
         replayer.logger.info(
             f"Lock command(s) sent for fid={original_fid}, count={len(smb2_locks)}"
