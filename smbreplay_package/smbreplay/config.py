@@ -15,12 +15,12 @@ from typing import TypedDict
 DEFAULT_PCAP_CONFIG = {"capture_path": None, "verbose_level": 0}  # Default to CRITICAL
 
 DEFAULT_REPLAY_CONFIG = {
-    "server_ip": "127.0.0.1",
+    "server_ip": "",
     "port": 445,
     "domain": "",
-    "username": "testuser",
-    "password": "PASSWORD",
-    "tree_name": "testshare",
+    "username": "",
+    "password": "",
+    "tree_name": "",
     "max_wait": 5.0,
 }
 
