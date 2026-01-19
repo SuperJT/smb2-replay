@@ -807,28 +807,67 @@ class SMB2Replayer:
         
         files_created = 0
         files_with_size = 0
+        files_size_failed = 0
         for rel_path in file_paths:
             try:
+                # Normalize path for size lookup
+                normalized_rel = self._normalize_smb_path(rel_path)
                 file_size = file_sizes.get(rel_path, 0)
+                if file_size == 0:
+                    file_size = file_sizes.get(normalized_rel, 0)
                 unc_path = f"\\\\{server_ip}\\{tree_name}\\{rel_path}"
                 
                 # Create/open file and set size using smbclient
+                size_set_success = False
                 with smbclient.open_file(unc_path, mode='wb') as f:
                     if file_size > 0:
                         f.truncate(file_size)
-                        files_with_size += 1
                 
-                files_created += 1
+                # Verify size was actually set
                 if file_size > 0:
-                    logger.debug(f"Pre-created file: {rel_path} ({file_size} bytes)")
+                    try:
+                        stat_result = smbclient.stat(unc_path)
+                        actual_size = stat_result.st_size
+                        if actual_size == file_size:
+                            size_set_success = True
+                            files_with_size += 1
+                            logger.debug(f"Pre-created file with verified size: {rel_path} ({file_size} bytes)")
+                        else:
+                            logger.warning(f"Size mismatch for {rel_path}: expected {file_size}, got {actual_size}")
+                    except Exception as ve:
+                        logger.debug(f"Could not verify size for {rel_path}: {ve}")
+                    
+                    # Fallback: write-extend approach if verification failed
+                    if not size_set_success:
+                        try:
+                            with smbclient.open_file(unc_path, mode='r+b') as f:
+                                f.seek(file_size - 1)
+                                f.write(b'\\x00')
+                            # Verify fallback worked
+                            stat_result = smbclient.stat(unc_path)
+                            actual_size = stat_result.st_size
+                            if actual_size >= file_size:
+                                size_set_success = True
+                                files_with_size += 1
+                                logger.debug(f"Created file via write-extend: {rel_path} ({file_size} bytes, actual: {actual_size})")
+                            else:
+                                files_size_failed += 1
+                                logger.error(f"Write-extend failed for {rel_path}: expected {file_size}, got {actual_size}")
+                        except Exception as e2:
+                            files_size_failed += 1
+                            logger.error(f"Fallback write-extend failed for {rel_path}: {e2}")
                 else:
                     logger.debug(f"Pre-created file: {rel_path}")
+                
+                files_created += 1
             except Exception as e:
-                logger.warning(f"Failed to pre-create file {rel_path}: {e}")
+                logger.error(f"Failed to pre-create file {rel_path}: {e}")
 
         logger.info("Pre-trace state setup complete:")
         logger.info(f"  - {len(created_dirs)} directories created/exist")
-        logger.info(f"  - {files_created} files pre-created ({files_with_size} with size set)")
+        logger.info(f"  - {files_created} files pre-created ({files_with_size} with size verified)")
+        if files_size_failed > 0:
+            logger.error(f"  - {files_size_failed} files FAILED to set size")
         logger.info(f"  - {len(file_paths)} total file paths pre-created")
 
         # --- Close SMB session and connection after pre-trace setup ---

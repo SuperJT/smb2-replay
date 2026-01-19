@@ -1061,7 +1061,11 @@ class SMB2ReplaySystem:
             
             for path in normalized_paths:
                 if path not in directories and path not in created_files:
+                    # Normalize path for size lookup
+                    normalized_lookup = self._normalize_smb_path(path)
                     file_size = file_sizes.get(path, 0)
+                    if file_size == 0:
+                        file_size = file_sizes.get(normalized_lookup, 0)
                     size_info = f" ({file_size} bytes)" if file_size > 0 else ""
                     unc_path = f"\\\\{server_ip}\\{tree_name}\\{path}"
                     
@@ -1074,12 +1078,42 @@ class SMB2ReplaySystem:
                     else:
                         try:
                             # Create/open file and set size using smbclient
+                            size_set_success = False
                             with smbclient.open_file(unc_path, mode='wb') as f:
                                 if file_size > 0:
                                     f.truncate(file_size)
                             
+                            # Verify size was actually set
                             if file_size > 0:
-                                safe_print(f"✅ Created file: {path}{size_info}")
+                                try:
+                                    stat_result = smbclient.stat(unc_path)
+                                    actual_size = stat_result.st_size
+                                    if actual_size == file_size:
+                                        size_set_success = True
+                                        safe_print(f"✅ Created file: {path}{size_info} (verified)")
+                                    else:
+                                        safe_print(f"⚠️  Size mismatch for {path}: expected {file_size}, got {actual_size}")
+                                except Exception as ve:
+                                    safe_print(f"⚠️  Could not verify size for {path}: {ve}")
+                                
+                                # Fallback: write-extend approach if verification failed
+                                if not size_set_success:
+                                    try:
+                                        with smbclient.open_file(unc_path, mode='r+b') as f:
+                                            f.seek(file_size - 1)
+                                            f.write(b'\\x00')
+                                        # Verify fallback worked
+                                        stat_result = smbclient.stat(unc_path)
+                                        actual_size = stat_result.st_size
+                                        if actual_size >= file_size:
+                                            size_set_success = True
+                                            safe_print(f"✅ Created file via write-extend: {path}{size_info} (actual: {actual_size})")
+                                        else:
+                                            safe_print(f"❌ Write-extend failed for {path}: expected {file_size}, got {actual_size}")
+                                    except Exception as e2:
+                                        safe_print(f"❌ Fallback write-extend failed for {path}: {e2}")
+                                        if isinstance(results["errors"], list):
+                                            results["errors"].append(f"Failed to set size for {path}: {e2}")
                             else:
                                 safe_print(f"✅ Created file: {path}")
                             
