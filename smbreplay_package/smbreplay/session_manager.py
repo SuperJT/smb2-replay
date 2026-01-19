@@ -945,8 +945,12 @@ class SessionManager:
             # Get tree name from mapping - normalize tid for consistent lookup
             tree_name = tree_mapping.get(str(tid), tid) if tid != "N/A" else "N/A"
 
-            # Use mapped and normalized fields
+            # Use mapped and normalized fields - normalize status_display to handle NaN/float
             status_display = row.get("smb2.nt_status_desc", "N/A")
+            if status_display is None or (not isinstance(status_display, str) and pd.isna(status_display)):
+                status_display = "N/A"
+            else:
+                status_display = str(status_display)
             cmd = row.get("smb2.cmd", "-1")
             is_response = normalize_field(row.get("smb2.flags.response", "False")) == "True"
 
