@@ -6,11 +6,12 @@
 # ============================================================================
 FROM python:3.12-slim as builder
 
-# Install system dependencies (curl for UV installer)
+# Install system dependencies (curl for UV installer, git for GitHub packages)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     ca-certificates \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Install UV from official Docker image (fastest method)
@@ -31,6 +32,9 @@ COPY . /tmp/smbreplay
 # Install smbreplay with API extras from local code using UV (10-100x faster than pip)
 # Installing from local path with extras ensures all dependencies resolve correctly
 RUN uv pip install --no-cache "/tmp/smbreplay[api]"
+
+# Install smbprotocol from GitHub for lock operation support (SMB2LockElement)
+RUN uv pip install --no-cache "git+https://github.com/jborean93/smbprotocol.git"
 
 
 # ============================================================================

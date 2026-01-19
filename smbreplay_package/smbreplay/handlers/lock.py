@@ -78,29 +78,55 @@ def handle_lock(replayer, op: dict[str, Any], **kwargs):
                 length = op.get("smb2.lock.length", 0)
             if raw_flags is None:
                 raw_flags = op.get("smb2.lock.flags", 0)
+
+            # Handle array-wrapped values (tshark sometimes returns values as arrays)
+            if isinstance(offset, (list, tuple)):
+                offset = offset[0] if offset else 0
+            if isinstance(length, (list, tuple)):
+                length = length[0] if length else 0
+            if isinstance(raw_flags, (list, tuple)):
+                raw_flags = raw_flags[0] if raw_flags else 0
+
             replayer.logger.debug(
                 f"Lock field values: offset={offset}, length={length}, flags={raw_flags}"
             )
             try:
-                offset = int(offset)
+                # Handle string values (including hex strings)
+                if isinstance(offset, str):
+                    offset = offset.strip()
+                    if offset.startswith("0x") or offset.startswith("0X"):
+                        offset = int(offset, 16)
+                    else:
+                        offset = int(offset)
+                else:
+                    offset = int(offset) if offset is not None else 0
             except Exception:
+                replayer.logger.warning(f"Could not parse lock offset '{offset}', defaulting to 0")
                 offset = 0
             try:
-                length = int(length)
+                if isinstance(length, str):
+                    length = length.strip()
+                    if length.startswith("0x") or length.startswith("0X"):
+                        length = int(length, 16)
+                    else:
+                        length = int(length)
+                else:
+                    length = int(length) if length is not None else 0
             except Exception:
+                replayer.logger.warning(f"Could not parse lock length '{length}', defaulting to 0")
                 length = 0
             try:
-                flags = (
-                    int(raw_flags, 0) if isinstance(raw_flags, str) else int(raw_flags)
-                )
+                if isinstance(raw_flags, str):
+                    raw_flags = raw_flags.strip()
+                    if raw_flags.startswith("0x") or raw_flags.startswith("0X"):
+                        flags = int(raw_flags, 16)
+                    else:
+                        flags = int(raw_flags)
+                else:
+                    flags = int(raw_flags) if raw_flags is not None else 0
             except Exception as e:
                 replayer.logger.warning(
                     f"Could not parse lock flags '{raw_flags}', defaulting to 0: {e}"
-                )
-                import pprint
-
-                replayer.logger.error(
-                    f"Full operation for problematic lock: {pprint.pformat(op)}"
                 )
                 flags = 0
             lock_elements = [(offset, length, flags)]
