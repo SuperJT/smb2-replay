@@ -436,8 +436,17 @@ class SessionManager:
         volatile_fields = ["smb2.time", "smb2.frame.time"]
         field_options = [f for f in all_fields if f not in volatile_fields]
 
-        # Default selected fields
-        default_fields = ["smb2.nt_status", "smb2.create.action"]
+        # Default selected fields - include fields needed for file size extraction
+        default_fields = [
+            "smb2.nt_status",
+            "smb2.create.action",
+            "smb2.eof",  # End of file / file size
+            "smb2.allocation_size",  # File allocation size
+            "smb2.file_offset",  # For write/read operations
+            "smb2.write_length",  # Write data length
+            "smb2.setinfo.info_type",  # Set info type
+            "smb2.setinfo.file_info_class",  # Set info class
+        ]
         selected_fields = [f for f in default_fields if f in field_options]
 
         # Get file options
@@ -783,9 +792,18 @@ class SessionManager:
                 logger.warning(f"Failed to load session data for {session_file}")
                 return []
 
-        # Default selected fields
+        # Default selected fields - include fields needed for file size extraction
         if selected_fields is None:
-            selected_fields = ["smb2.nt_status", "smb2.create.action"]
+            selected_fields = [
+                "smb2.nt_status",
+                "smb2.create.action",
+                "smb2.eof",  # End of file / file size
+                "smb2.allocation_size",  # File allocation size
+                "smb2.file_offset",  # For write/read operations
+                "smb2.write_length",  # Write data length
+                "smb2.setinfo.info_type",  # Set info type
+                "smb2.setinfo.file_info_class",  # Set info class
+            ]
 
         # Filter invalid fields
         selected_fields = [

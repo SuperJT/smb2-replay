@@ -67,13 +67,13 @@ def handle_lock(replayer, op: dict[str, Any], **kwargs):
         replayer.logger.debug(f"Available keys in op: {list(op.keys())}")
         # If lock_elements is not present, try to build from offset/length/flags using correct DataFrame field names
         if not lock_elements:
-            # Try new field names first
-            offset = op.get("smb2.lock_offset")
+            # tshark uses smb2.file_offset for lock offset (no smb2.lock_offset field exists)
+            offset = op.get("smb2.file_offset")
             length = op.get("smb2.lock_length")
             raw_flags = op.get("smb2.lock_flags")
             # Fallback to legacy field names if not present
             if offset is None:
-                offset = op.get("smb2.lock.offset", 0)
+                offset = op.get("smb2.lock_offset", 0)  # Fallback for compatibility
             if length is None:
                 length = op.get("smb2.lock.length", 0)
             if raw_flags is None:

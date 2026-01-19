@@ -549,6 +549,16 @@ class SMB2ReplaySystem:
             Dictionary mapping normalized file paths to sizes in bytes
         """
         file_sizes: dict[str, int] = {}
+        logger = _get_logger()
+        
+        # Debug: check what fields are available in operations
+        if operations:
+            sample_op = operations[0]
+            sample_keys = list(sample_op.keys())
+            logger.debug(f"Sample operation keys: {sample_keys}")
+            eof_present = "smb2.eof" in sample_keys
+            alloc_present = "smb2.allocation_size" in sample_keys
+            logger.debug(f"smb2.eof present: {eof_present}, smb2.allocation_size present: {alloc_present}")
         
         # Build lookup tables for request/response correlation
         # msg_id -> filename (from Create requests)
@@ -576,27 +586,30 @@ class SMB2ReplaySystem:
                     eof = 0
                     alloc_size = 0
                     eof_str = _safe_op_get(op, "smb2.eof", None)
-                    if eof_str and eof_str != "0":
+                    if eof_str and eof_str != "0" and eof_str != "N/A":
                         try:
                             eof = int(eof_str)
                         except (ValueError, TypeError):
                             pass
                     alloc_str = _safe_op_get(op, "smb2.allocation_size", None)
-                    if alloc_str and alloc_str != "0":
+                    if alloc_str and alloc_str != "0" and alloc_str != "N/A":
                         try:
                             alloc_size = int(alloc_str)
                         except (ValueError, TypeError):
                             pass
                     if eof > 0 or alloc_size > 0:
                         create_response_sizes[msg_id] = (eof, alloc_size)
+                        logger.debug(f"Create response msg_id={msg_id}: eof={eof}, alloc_size={alloc_size}")
         
         # Correlate Create requests with responses via msg_id
+        logger.debug(f"Create requests: {len(create_request_filenames)}, Create responses with sizes: {len(create_response_sizes)}")
         for msg_id, filename in create_request_filenames.items():
             if msg_id in create_response_sizes:
                 eof, alloc_size = create_response_sizes[msg_id]
                 size = max(eof, alloc_size)
                 if size > 0:
                     file_sizes[filename] = max(file_sizes.get(filename, 0), size)
+                    logger.debug(f"Correlated file size: {filename} = {size} bytes")
         
         # Second pass: check SET_INFO and WRITE operations
         for op in operations:
@@ -652,7 +665,7 @@ class SMB2ReplaySystem:
             elif cmd == "9":  # Write
                 offset = _safe_op_get(op, "smb2.file_offset", None)
                 length = _safe_op_get(op, "smb2.write_length", None)
-                if offset and length:
+                if offset and length and offset != "N/A" and length != "N/A":
                     try:
                         write_end = int(offset) + int(length)
                         if write_end > 0:
@@ -661,6 +674,13 @@ class SMB2ReplaySystem:
                             )
                     except (ValueError, TypeError):
                         pass
+        
+        logger.info(f"Extracted file sizes for {len(file_sizes)} files")
+        if file_sizes:
+            # Log a few examples
+            examples = list(file_sizes.items())[:5]
+            for path, size in examples:
+                logger.debug(f"  {path}: {size} bytes")
         
         return file_sizes
 
